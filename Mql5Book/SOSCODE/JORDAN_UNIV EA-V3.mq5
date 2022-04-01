@@ -1,12 +1,12 @@
 #property copyright "Source Code Technlogies"
 #property link      "https://www.soscode.com"
-#property version   "2022.04.01@10:07"
+#property version   "2022.04.01@11:35"
 /*
 *Static target re-calculation in drawdown
 Add BC Volume Area to filter trades on range
 Enable multi-asset trading(trd closing, target re-calcualtions )
 Break even when profit return to 0.0 from drawdown
-Break even when first normal target reached
+Break even when first normal target reached -->
 Break even when the advanced target has been reached
 Take screen shot on open and close of trade for journaling
 
@@ -310,28 +310,28 @@ if(!useStaticMoneyRecover){
 		int maLHandle= iMA(_Symbol,_Period,MAPeriodLong,MAShift,MAMethodL,MAPrice);
 		//+FOR NONLAG
 		int maLHandleNonLag = iCustom(_Symbol,_Period, "NonLagMaAlerts");
-		//int BCVolumeAreaHandle = iCustom(_Symbol,_Period, "BC Volume Area",20);//solarwinds
+		int BCVolumeAreaHandle = iCustom(_Symbol,_Period, "BC Volume Area",20);//solarwinds
 		
 		int maSHandleNonLag= iMA(_Symbol,_Period,10,0,MODE_EMA,MAPrice);
 		
 		CopyBuffer(maSHandle,0,0,3,maS);
 		CopyBuffer(maLHandle,0,0,3,maL);//CopyBuffer(NonlagMaHandle,0,0,3,NonLagSignalValues);
 		CopyBuffer(maLHandleNonLag,0,0,3,maLNonLag);//Non Lag Ma
-		//CopyBuffer(maLHandleNonLag,2,0,3,maLNonLag);//Non Lag Ma Actual Trend
+		CopyBuffer(maLHandleNonLag,2,0,3,maLNonLag);//Non Lag Ma Actual Trend
 		CopyBuffer(maSHandleNonLag,0,0,3,maSNonLag);//EMa 10
 		
 		int _4MACandlesHandle = iCustom(_Symbol,_Period, "4MACandles");
 		CopyBuffer(_4MACandlesHandle,1,0,3,_4MACandlesValuesH);//Upper
 		CopyBuffer(_4MACandlesHandle,2,0,3,_4MACandlesValuesL);//Lower
 		_4MACandleRange =MathAbs(_4MACandlesValuesH[0] - _4MACandlesValuesL[0]);
-		//CopyBuffer(BCVolumeAreaHandle,0,0,3,BCVolumeArea);
+		CopyBuffer(BCVolumeAreaHandle,0,0,3,BCVolumeArea);
 		
 		
 		CopyClose(_Symbol,_Period,0,3,candleClose);
 		CurrentPriceGapRange = CalculatePriceGap(maL[0]);
 		
 
-		if((maS[CandleSeq+1] < maL[CandleSeq+1])&&(maS[CandleSeq]>maL[CandleSeq])){//update to more accurate cross under method
+		if((maS[CandleSeq+1] < maL[CandleSeq+1])&&(maS[CandleSeq]>maL[CandleSeq]) && BCVolumeArea[0] > 0){//update to more accurate cross under method
 			//cross up
 			Print("Cross above!");
 			//closePosition();
@@ -355,7 +355,7 @@ if(!useStaticMoneyRecover){
       			CurSignal="BUY";
       		}
 			
-		}else if((maS[CandleSeq+1]>maL[CandleSeq+1])&&(maS[CandleSeq]<maL[CandleSeq])){//update to more accurate cross under method
+		}else if((maS[CandleSeq+1]>maL[CandleSeq+1])&&(maS[CandleSeq]<maL[CandleSeq]) && BCVolumeArea[0] < 0){//update to more accurate cross under method
 			//cross down
 			Print("Cross under!");
 			//closePosition();
