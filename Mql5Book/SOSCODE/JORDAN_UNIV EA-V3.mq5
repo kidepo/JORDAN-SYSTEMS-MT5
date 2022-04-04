@@ -1,9 +1,9 @@
 #property copyright "Source Code Technlogies"
 #property link      "https://www.soscode.com"
-#property version   "2022.04.01@11:35"
+#property version   "2022.04.04@12:41"
 /*
 *Static target re-calculation in drawdown
-Add BC Volume Area to filter trades on range
+*Add BC Volume Area to filter trades on range
 Enable multi-asset trading(trd closing, target re-calcualtions )
 Break even when profit return to 0.0 from drawdown
 Break even when first normal target reached -->
@@ -34,16 +34,20 @@ input bool PlaceTradesInPut = true;
 input int MyMagicNumber = 0;
 
 sinput string strategy_1_4MA;
-input bool ActivateSys1 = true;
+input bool ActivateSys1_ = false;
 input int MAPeriodShort=2;
 //10//smooth
 input int MAPeriodLong=200;
 input int FourMAPeriod=200;
 
-sinput string __strategy_2__NonLag;	
-input bool ActivateSys2 = false;
+sinput string __strategy_2_NonLag;	
+input bool ActivateSys2_ = false;
 input int NonLagMAPeriod=200;
 input bool confirmByNonlag = false;
+sinput string __strategy_3_BCVArea;	
+input bool ActivateSys3_ = true;
+input double BCVolumeAreaSignalVal = 200;
+input int BCVolumeAreaCandleSeq = 0;
 
 sinput string params;
 input int MAShift=0;
@@ -101,6 +105,9 @@ input int MinimumProfit = 0;
 input int Step = 0; 
 input bool AutoStopLossSet = false;
 input bool UseFibProfitLevel = true;
+sinput string __filters__;	
+input bool UseBCVolumeAreaFilter = false;
+input double BCVolumeAreaFilterVal = 50;
 
 sinput string BE;		// Break Even
 input bool UseBreakEven = false;
@@ -117,7 +124,7 @@ input bool   alertsTelegram  = false;
 input string     APIkey      = "1819898948:AAFRCYc45DMt_hTjwRtUuk58iRIvc1bRcIs";
 input string     Channel_ID  = "-590157620";
 //-------------------------
-string EA_Version = "#Jordan_UNIV EA-V3.2";
+string EA_Version = "#Jordan_UNIV EA-V3.4";
 //
 
 
@@ -162,6 +169,11 @@ double currentEquity= 0.0;
 double NextExpectedBal= 0.0;
 datetime startTime;
 bool useStaticMoneyRecover = useStaticMoneyRecover_;
+string BCVolumeAreaSignal = "NONE";
+string BCVolumeAreaSignalMain = "NONE";
+bool ActivateSys3 = ActivateSys3_;
+bool ActivateSys2 = ActivateSys2_;
+bool ActivateSys1 = ActivateSys1_;
 
 
 MqlTradeRequest request;
@@ -172,6 +184,12 @@ MqlTradeCheckResult checkResult;
 //| start function                                                   |
 //+------------------------------------------------------------------+
 int OnInit(){
+   if(ActivateSys3 || UseBCVolumeAreaFilter)
+      {TesterHideIndicators(true);}
+   ActivateSys3 = ActivateSys3_;
+   ActivateSys2 = ActivateSys2_;
+   ActivateSys1 = ActivateSys1_;
+
 	ArraySetAsSeries(candleTimes,true);
 	onStartEquity = AccountInfoDouble(ACCOUNT_BALANCE);
 	innerlocked = false;
@@ -200,6 +218,11 @@ int OnInit(){
          highestBalCaptured = AccountInfoDouble(ACCOUNT_BALANCE);
      }
    
+   if(ActivateSys3){
+      ActivateSys2 = false;
+      ActivateSys1 = false;
+   }
+   
 	return(0);
 }
 
@@ -226,7 +249,7 @@ curBal = AccountInfoDouble(ACCOUNT_BALANCE);
 curProfit = NormalizeDouble((currentEquity - onStartEquity),_Digits);
 curBalProfit = NormalizeDouble((curBal - onStartEquity),_Digits);
 
-Comment("Copyright © 2022 Soscode Tech, Loaded @ "+startTime+",\nStart Bal. "+onStartEquity+" Cur Bal. "+curBal+" Bal Profit. "+curBalProfit+" Peak Bal. "+highestBalCaptured+"\nCur EQt. "+ currentEquity +", Flt Profit. "+curProfit+"\nTrade Target: "+ takeProfitCash +"\nDaily;- Target: "+ DailyProfitCash +", Loss: "+lossToStopDayTrading+"\nSYS 1: "+CurTrend+"<--4MACandles [Default] (Active-"+ActivateSys1+") \nSYS 2: "+CurTrendNonLag+ "<--Non lag (Active-"+ActivateSys2+")\nInner Locked: "+innerlocked+"\nPlace Trades: "+PlaceTrades+"\nPrice Gap: "+CurrentPriceGapRange+"\n"+lastError);
+Comment("Copyright © 2022 Soscode Tech, Loaded @ "+startTime+",\nStart Bal. "+onStartEquity+" Cur Bal. "+curBal+" Bal Profit. "+curBalProfit+" Peak Bal. "+highestBalCaptured+"\nCur EQt. "+ currentEquity +", Flt Profit. "+curProfit+"\nTrade Target: "+ takeProfitCash +"\nDaily;- Target: "+ DailyProfitCash +", Loss: "+lossToStopDayTrading+"\nSYS 1: "+CurTrend+"<--4MACandles [Default] (Active-"+ActivateSys1+") \nSYS 2: "+CurTrendNonLag+ "<--Non lag (Active-"+ActivateSys2+")\nSYS 3: "+BCVolumeAreaSignalMain+ "<--BC Vol Area (Active-"+ActivateSys3+")\nInner Locked: "+innerlocked+"\nPlace Trades: "+PlaceTrades+"\nPrice Gap: "+CurrentPriceGapRange+"\n"+lastError);
 //modify targets
 if(!useStaticMoneyRecover){
    if(curProfit < 0){//if we are in drawdown
@@ -295,6 +318,7 @@ if(!useStaticMoneyRecover){
 		double _4MACandlesValuesH[];
 		double _4MACandlesValuesL[];
 		double BCVolumeArea[];
+		double BCVolumeAreaSig[];
 		ArraySetAsSeries(maS,true);
 		ArraySetAsSeries(maL,true);
 		ArraySetAsSeries(maSNonLag,true);
@@ -303,6 +327,7 @@ if(!useStaticMoneyRecover){
 		ArraySetAsSeries(_4MACandlesValuesH,true);
 		ArraySetAsSeries(_4MACandlesValuesL,true);
 		ArraySetAsSeries(BCVolumeArea,true);
+		ArraySetAsSeries(BCVolumeAreaSig,true);
 		
 		double candleClose[];
 		ArraySetAsSeries(candleClose,true);
@@ -310,9 +335,15 @@ if(!useStaticMoneyRecover){
 		int maLHandle= iMA(_Symbol,_Period,MAPeriodLong,MAShift,MAMethodL,MAPrice);
 		//+FOR NONLAG
 		int maLHandleNonLag = iCustom(_Symbol,_Period, "NonLagMaAlerts");
-		int BCVolumeAreaHandle = iCustom(_Symbol,_Period, "BC Volume Area",20);//solarwinds
-		
+		int BCVolumeAreaHandle = 0;
+		int BCVolumeAreaSigHandle = 0;
 		int maSHandleNonLag= iMA(_Symbol,_Period,10,0,MODE_EMA,MAPrice);
+		
+		if(UseBCVolumeAreaFilter)
+		    BCVolumeAreaHandle = iCustom(_Symbol,_Period, "BC Volume Area", BCVolumeAreaFilterVal);//solarwinds
+		if(ActivateSys3)
+		    BCVolumeAreaSigHandle = iCustom(_Symbol,_Period, "BC Volume Area", BCVolumeAreaSignalVal);//solarwinds
+		
 		
 		CopyBuffer(maSHandle,0,0,3,maS);
 		CopyBuffer(maLHandle,0,0,3,maL);//CopyBuffer(NonlagMaHandle,0,0,3,NonLagSignalValues);
@@ -324,110 +355,154 @@ if(!useStaticMoneyRecover){
 		CopyBuffer(_4MACandlesHandle,1,0,3,_4MACandlesValuesH);//Upper
 		CopyBuffer(_4MACandlesHandle,2,0,3,_4MACandlesValuesL);//Lower
 		_4MACandleRange =MathAbs(_4MACandlesValuesH[0] - _4MACandlesValuesL[0]);
-		CopyBuffer(BCVolumeAreaHandle,0,0,3,BCVolumeArea);
+		if(UseBCVolumeAreaFilter)
+		   {CopyBuffer(BCVolumeAreaHandle,0,0,3,BCVolumeArea);}
+		if(ActivateSys3)
+		   {CopyBuffer(BCVolumeAreaSigHandle,0,0,3,BCVolumeAreaSig);}
 		
 		
 		CopyClose(_Symbol,_Period,0,3,candleClose);
 		CurrentPriceGapRange = CalculatePriceGap(maL[0]);
 		
-
-		if((maS[CandleSeq+1] < maL[CandleSeq+1])&&(maS[CandleSeq]>maL[CandleSeq]) && BCVolumeArea[0] > 0){//update to more accurate cross under method
-			//cross up
-			Print("Cross above!");
-			//closePosition();
-			if(confirmByNonlag && CurSignalNonLag == "BUY"){
-   			if(ActivateSys1){
-      			 CloseAllTrades("SELL"); 
-      			 //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
-      			 //makePosition(orderBuy);
-      			 buyPlaced = false;//clear up to all buys
-      			 if(ActivateSys1)Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
-      			}
-      			CurSignal="BUY";
-   			}else if(!confirmByNonlag){
-      			if(ActivateSys1){
-         			CloseAllTrades("SELL");
-         			//TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
-         			buyPlaced = false; 
-         			if(ActivateSys1)Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
-         			
-      			}
-      			CurSignal="BUY";
-      		}
-			
-		}else if((maS[CandleSeq+1]>maL[CandleSeq+1])&&(maS[CandleSeq]<maL[CandleSeq]) && BCVolumeArea[0] < 0){//update to more accurate cross under method
-			//cross down
-			Print("Cross under!");
-			//closePosition();
-			if(confirmByNonlag && CurSignalNonLag == "SELL"){
-   			if(ActivateSys1){
-   			   CloseAllTrades("BUY");
-   			   //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
-   			   sellPlaced = false;
-   			   if(ActivateSys1)Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
-   			  }
-   			//makePosition(orderSell); 
-   			CurSignal="SELL";
-   			} else if(!confirmByNonlag){
-      			if(ActivateSys1){
-         			CloseAllTrades("BUY");
-         			//TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
-         			sellPlaced = false;
-         			if(ActivateSys1)Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+		
+		if(UseBCVolumeAreaFilter){
+		   if(BCVolumeArea[0] > 0) BCVolumeAreaSignal = "BUY";
+		   if(BCVolumeArea[0] < 0) BCVolumeAreaSignal = "SELL";
+		}else{
+		   BCVolumeAreaSignal = "NONE";
+		}
+		
+		/*if(ActivateSys3){
+		   if(BCVolumeAreaSig[0] > 0) BCVolumeAreaSignalMain = "BUY";
+		   if(BCVolumeAreaSig[0] < 0) BCVolumeAreaSignalMain = "SELL";
+		}else{
+		   BCVolumeAreaSignalMain = "NONE";
+		}*/
+		
+      if(ActivateSys1 || ActivateSys2){
+      
+      		if((maS[CandleSeq+1] < maL[CandleSeq+1])&&(maS[CandleSeq]>maL[CandleSeq])){//update to more accurate cross under method
+      			//cross up
+      			Print("Cross above!");
+      			//closePosition();
+      			if(confirmByNonlag && CurSignalNonLag == "BUY"){
+         			if(ActivateSys1){
+            			 CloseAllTrades("SELL"); 
+            			 //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
+            			 //makePosition(orderBuy);
+            			 buyPlaced = false;//clear up to all buys
+            			 if(ActivateSys1)Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+            			}
+            			CurSignal="BUY";
+         			}else if(!confirmByNonlag){
+            			if(ActivateSys1){
+               			CloseAllTrades("SELL");
+               			//TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
+               			buyPlaced = false; 
+               			if(ActivateSys1)Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+               			
+            			}
+            			CurSignal="BUY";
+            		}
+      			
+      		}else if((maS[CandleSeq+1]>maL[CandleSeq+1])&&(maS[CandleSeq]<maL[CandleSeq])){//update to more accurate cross under method
+      			//cross down
+      			Print("Cross under!");
+      			//closePosition();
+      			if(confirmByNonlag && CurSignalNonLag == "SELL"){
+         			if(ActivateSys1){
+         			   CloseAllTrades("BUY");
+         			   //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
+         			   sellPlaced = false;
+         			   if(ActivateSys1)Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
+         			  }
+         			//makePosition(orderSell); 
+         			CurSignal="SELL";
+         			} else if(!confirmByNonlag){
+            			if(ActivateSys1){
+               			CloseAllTrades("BUY");
+               			//TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
+               			sellPlaced = false;
+               			if(ActivateSys1)Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+               		} 
+            			CurSignal="SELL";
          		} 
-      			CurSignal="SELL";
-   		} 
+      
+      		}else if(maS[CandleSeq]>maL[CandleSeq]){//use this for buying
+      			CurTrend="BUYING";
+      			//if(ActivateSys1)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );//CloseAllTrades("SELL");
+      			if(ActivateSys1 && TradeImmediately)CurSignal="BUY";
+      		}else if(maS[CandleSeq]<maL[CandleSeq]){
+      		   CurTrend="SELLING";
+      		   //if(ActivateSys1)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );//CloseAllTrades("BUY");
+      		   if(ActivateSys1 && TradeImmediately)CurSignal="SELL";
+      		}
+      		
+      		//FOR NON LAG
+      		
+      		if((maSNonLag[CandleSeq+1] < maLNonLag[CandleSeq+1])&&(maSNonLag[CandleSeq]>maLNonLag[CandleSeq])){
+      			//cross up
+      			Print("Cross above for Non Lag!");
+      			//closePosition();
+      			if(ActivateSys2){
+      			   //CloseAllTrades("SELL"); //close all sells
+      			   TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
+      			   buyPlaced = false;
+      			   Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+      			}
+      			//makePosition(orderBuy);
+      			CurSignalNonLag="BUY";
+      
+      
+      		}else if((maSNonLag[CandleSeq+1]>maLNonLag[CandleSeq+1])&&(maSNonLag[CandleSeq]<maLNonLag[CandleSeq])){
+      			//cross down
+      			Print("Cross under for Non Lag!");
+      			//closePosition();
+      			if(ActivateSys2){
+      			   //CloseAllTrades("BUY"); //close all buys
+      			   TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY");
+      			   sellPlaced = false;
+      			   Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+      			}
+      			//makePosition(orderSell); 
+      			CurSignalNonLag="SELL";
+      
+      		}else if((maSNonLag[CandleSeq]>maLNonLag[CandleSeq])){
+      		   CurTrendNonLag="BUYING";
+      		   //if(ActivateSys2)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );//CloseAllTrades("SELL");
+      			if(ActivateSys2 && TradeImmediately)CurSignalNonLag="BUY"; 
+      		}else if((maSNonLag[CandleSeq]<maLNonLag[CandleSeq])){
+      		   CurTrendNonLag="SELLING";
+      		   //if(ActivateSys2)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );//CloseAllTrades("BUY");
+      		   if(ActivateSys2 && TradeImmediately)CurSignalNonLag="SELL"; 
+      		}
+      		
+      		//FOR NON LAG ENDS
+		}else if(ActivateSys3){ 
+		
+		   if(BCVolumeAreaSig[BCVolumeAreaCandleSeq] > 0) {
+		      
+		      if(BCVolumeAreaSignalMain == "SELL"){
+               	CloseAllTrades("SELL"); 
+               	buyPlaced = false;//clear up to all buys
+               	Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+            	   //buy here
+            	}
+            	BCVolumeAreaSignalMain = "BUY";
 
-		}else if(maS[CandleSeq]>maL[CandleSeq]){//use this for buying
-			CurTrend="BUYING";
-			//if(ActivateSys1)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );//CloseAllTrades("SELL");
-			if(ActivateSys1 && TradeImmediately)CurSignal="BUY";
-		}else if(maS[CandleSeq]<maL[CandleSeq]){
-		   CurTrend="SELLING";
-		   //if(ActivateSys1)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );//CloseAllTrades("BUY");
-		   if(ActivateSys1 && TradeImmediately)CurSignal="SELL";
+		   }
+		   
+		   if(BCVolumeAreaSig[BCVolumeAreaCandleSeq] < 0) {
+		      if(BCVolumeAreaSignalMain == "BUY"){
+               	CloseAllTrades("BUY"); 
+               	sellPlaced = false;//clear up to all buys
+               	Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+            	   //sell here
+            	}
+            	BCVolumeAreaSignalMain = "SELL";
+		   }
+		
 		}
-		
-		//FOR NON LAG
-		
-		if((maSNonLag[CandleSeq+1] < maLNonLag[CandleSeq+1])&&(maSNonLag[CandleSeq]>maLNonLag[CandleSeq])){
-			//cross up
-			Print("Cross above for Non Lag!");
-			//closePosition();
-			if(ActivateSys2){
-			   //CloseAllTrades("SELL"); //close all sells
-			   TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
-			   buyPlaced = false;
-			   Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
-			}
-			//makePosition(orderBuy);
-			CurSignalNonLag="BUY";
-
-
-		}else if((maSNonLag[CandleSeq+1]>maLNonLag[CandleSeq+1])&&(maSNonLag[CandleSeq]<maLNonLag[CandleSeq])){
-			//cross down
-			Print("Cross under for Non Lag!");
-			//closePosition();
-			if(ActivateSys2){
-			   //CloseAllTrades("BUY"); //close all buys
-			   TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY");
-			   sellPlaced = false;
-			   Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
-			}
-			//makePosition(orderSell); 
-			CurSignalNonLag="SELL";
-
-		}else if((maSNonLag[CandleSeq]>maLNonLag[CandleSeq])){
-		   CurTrendNonLag="BUYING";
-		   //if(ActivateSys2)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );//CloseAllTrades("SELL");
-			if(ActivateSys2 && TradeImmediately)CurSignalNonLag="BUY"; 
-		}else if((maSNonLag[CandleSeq]<maLNonLag[CandleSeq])){
-		   CurTrendNonLag="SELLING";
-		   //if(ActivateSys2)TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );//CloseAllTrades("BUY");
-		   if(ActivateSys2 && TradeImmediately)CurSignalNonLag="SELL"; 
-		}
-		
-		//FOR NON LAG ENDS
 		
 		 
 	   //close by profits
@@ -462,31 +537,61 @@ if(!useStaticMoneyRecover){
 	//Prepare for trading
 	
 	if(NewBar.CheckNewBar(_Symbol,_Period) && TotalAccMaximumTradeCount > PositionsTotal() && PlaceTrades && !innerlocked){
-	    if(((CurSignal=="BUY" && ActivateSys1) || (CurSignalNonLag =="BUY" && ActivateSys2)) && !buyPlaced ){
+	
+	    if(((CurSignal=="BUY" && ActivateSys1) || (CurSignalNonLag =="BUY" && ActivateSys2) || (BCVolumeAreaSignalMain =="BUY" && ActivateSys3)) && !buyPlaced ){
 	     if(AllowedPriceGap > 0.0 && (AllowedPriceGap >= CurrentPriceGapRange) ){
-   	      if(FullAutoPilot)
-   		      makePosition(orderBuy);
-   		     else if(BuyOnly) 
-   		      makePosition(orderBuy);
-		    }else if(AllowedPriceGap == 0.0){//just trade if gap not specified
-   		     if(FullAutoPilot)
+	         if(UseBCVolumeAreaFilter && BCVolumeAreaSignal == "BUY"){
+      	      if(FullAutoPilot)
       		      makePosition(orderBuy);
       		     else if(BuyOnly) 
       		      makePosition(orderBuy);
+      		 }else if(!UseBCVolumeAreaFilter){
+         		  if(FullAutoPilot)
+         		      makePosition(orderBuy);
+         		     else if(BuyOnly) 
+         		      makePosition(orderBuy);
+      		 }
+   		      
+		    }else if(AllowedPriceGap == 0.0){//just trade if gap not specified
+   		    if(UseBCVolumeAreaFilter && BCVolumeAreaSignal == "BUY"){
+      		     if(FullAutoPilot)
+         		      makePosition(orderBuy);
+         		     else if(BuyOnly) 
+         		      makePosition(orderBuy);
+         	}else if(!UseBCVolumeAreaFilter){
+               	if(FullAutoPilot)
+         		      makePosition(orderBuy);
+         		     else if(BuyOnly) 
+         		      makePosition(orderBuy);
+             }
 		    }
 		 }
-		 if(((CurSignal=="SELL" && ActivateSys1)  || (CurSignalNonLag =="SELL" && ActivateSys2)) && !sellPlaced){
+		 if(((CurSignal=="SELL" && ActivateSys1)  || (CurSignalNonLag =="SELL" && ActivateSys2) || (BCVolumeAreaSignalMain =="SELL" && ActivateSys3)) && !sellPlaced){
    		 if(AllowedPriceGap > 0.0 && (AllowedPriceGap >= CurrentPriceGapRange) ){
-   	      if(FullAutoPilot)
-   		      makePosition(orderSell);
-   		     else if(SellOnly) 
-   		      makePosition(orderSell);
-		    }else if(AllowedPriceGap == 0.0){//just trade if gap not specified
-   		     if(FullAutoPilot)
-      		      makePosition(orderSell);
-      		     else if(SellOnly) 
-      		      makePosition(orderBuy);
-		    }
+   		   if(UseBCVolumeAreaFilter && BCVolumeAreaSignal == "SELL"){
+         	    if(FullAutoPilot)
+         		      makePosition(orderSell);
+         		     else if(SellOnly) 
+         		      makePosition(orderSell);
+      		    }else if(!UseBCVolumeAreaFilter){
+         		    if(FullAutoPilot)
+            		      makePosition(orderSell);
+            		     else if(SellOnly) 
+            		      makePosition(orderSell);
+      		    }
+   		     }else if(AllowedPriceGap == 0.0){//just trade if gap not specified
+      		     if(UseBCVolumeAreaFilter && BCVolumeAreaSignal == "SELL"){
+         		     if(FullAutoPilot)
+            		      makePosition(orderSell);
+            		     else if(SellOnly) 
+            		      makePosition(orderBuy);
+            		 }else if(!UseBCVolumeAreaFilter){
+            		  if(FullAutoPilot)
+            		      makePosition(orderSell);
+            		     else if(SellOnly) 
+            		      makePosition(orderBuy);
+            		 }
+   		    }
 		 }
 	}/*
 	else if(TradeOnEveryTickL && TotalAccMaximumTradeCount > PositionsTotal() && PlaceTrades && !innerlocked){
