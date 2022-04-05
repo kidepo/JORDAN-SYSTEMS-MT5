@@ -1,6 +1,6 @@
 #property copyright "Source Code Technlogies"
 #property link      "https://www.soscode.com"
-#property version   "2022.04.04@12:41"
+#property version   "2022.04.05@06:02"
 /*
 *Static target re-calculation in drawdown
 *Add BC Volume Area to filter trades on range
@@ -124,7 +124,7 @@ input bool   alertsTelegram  = false;
 input string     APIkey      = "1819898948:AAFRCYc45DMt_hTjwRtUuk58iRIvc1bRcIs";
 input string     Channel_ID  = "-590157620";
 //-------------------------
-string EA_Version = "#Jordan_UNIV EA-V3.4";
+string EA_Version = "#Jordan_UNIV EA-V3.5";
 
 
 
@@ -217,11 +217,23 @@ int OnInit(){
    if(highestBalCaptured == 0.0){
          highestBalCaptured = AccountInfoDouble(ACCOUNT_BALANCE);
      }
+     
+   if(ActivateSys1){
+      EA_Version = EA_Version + ":[1]";
+   }
+   if(ActivateSys2){
+      EA_Version = EA_Version + ":[2]";
+   }
    
    if(ActivateSys3){
       ActivateSys2 = false;
       ActivateSys1 = false;
+      EA_Version = EA_Version + ":[3]";
    }
+   
+   
+    buyPlaced = true;
+    sellPlaced = true;
    
 	return(0);
 }
@@ -356,9 +368,9 @@ if(!useStaticMoneyRecover){
 		CopyBuffer(_4MACandlesHandle,2,0,3,_4MACandlesValuesL);//Lower
 		_4MACandleRange =MathAbs(_4MACandlesValuesH[0] - _4MACandlesValuesL[0]);
 		if(UseBCVolumeAreaFilter)
-		   {CopyBuffer(BCVolumeAreaHandle,0,0,3,BCVolumeArea);}
+		   {CopyBuffer(BCVolumeAreaHandle,0,0,5,BCVolumeArea);}
 		if(ActivateSys3)
-		   {CopyBuffer(BCVolumeAreaSigHandle,0,0,3,BCVolumeAreaSig);}
+		   {CopyBuffer(BCVolumeAreaSigHandle,0,0,5,BCVolumeAreaSig);}
 		
 		
 		CopyClose(_Symbol,_Period,0,3,candleClose);
@@ -480,7 +492,7 @@ if(!useStaticMoneyRecover){
       		//FOR NON LAG ENDS
 		}else if(ActivateSys3){ 
 		
-		   if(BCVolumeAreaSig[BCVolumeAreaCandleSeq] > 0) {
+		   if(BCVolumeAreaSig[0] > 0 && BCVolumeAreaSig[1] > 0 && BCVolumeAreaSig[2] > 0 && BCVolumeAreaSig[3] > 0 && BCVolumeAreaSig[4] < 0) {
 		      
 		      if(BCVolumeAreaSignalMain == "SELL"){
                	CloseAllTrades("SELL"); 
@@ -492,7 +504,7 @@ if(!useStaticMoneyRecover){
 
 		   }
 		   
-		   if(BCVolumeAreaSig[BCVolumeAreaCandleSeq] < 0) {
+		   if(BCVolumeAreaSig[0] < 0 && BCVolumeAreaSig[1] < 0 && BCVolumeAreaSig[2] < 0 && BCVolumeAreaSig[3] < 0 && BCVolumeAreaSig[4] > 0) {
 		      if(BCVolumeAreaSignalMain == "BUY"){
                	CloseAllTrades("BUY"); 
                	sellPlaced = false;//clear up to all buys
