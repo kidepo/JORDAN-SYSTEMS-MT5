@@ -1,6 +1,6 @@
 #property copyright "Jordan Capital Inc."
 #property link      "https://www.jordancapital.com"
-#property version   "2022.04.13@10:15"
+#property version   "2022.05.19@17:20"
 /*
 *Static target re-calculation in drawdown
 *Add BC Volume Area to filter trades on range
@@ -10,13 +10,16 @@ Break even when first normal target reached -->
 Break even when the advanced target has been reached
 Take screen shot on open and close of trade for journaling
 Added Elliot Wave Oscillator
-
+---consider adding fibo levels for profits
+---no enter trades when current trade still running (consider stops)
+---set break even levels a draw of fibo
 */
-/*#include <Mql5Book\Trade.mqh>
-CTradeC Trade;*/
+#include <Mql5Book\Trade.mqh>
+CTradeC Trade;
 #include <Trade\XTrade.mqh>
 //#include <Mql5Book\XTrade.mqh>
 CTrade TradeX;
+
 // Timer
 #include <Mql5Book\Timer.mqh>
 CTimer Timer;
@@ -45,6 +48,14 @@ sinput string __strategy_2_NonLag;
 input bool ActivateSys2_ = false;
 input int NonLagMAPeriod=200;
 input bool confirmByNonlag = false;
+
+sinput string ____________;
+input int MAShift=0;
+input ENUM_MA_METHOD MAMethodS= MODE_SMMA;
+input ENUM_MA_METHOD MAMethodL= MODE_EMA;
+input ENUM_APPLIED_PRICE MAPrice= PRICE_CLOSE;
+sinput string _____________;
+
 sinput string __strategy_3_BCVArea;	
 input bool ActivateSys3_ = true;
 input double BCVolumeAreaSignalVal = 200;
@@ -56,20 +67,18 @@ input int                  EWOSlowMA = 200;
 input int                  EWOCandleSeq = 1;                                          // Slow Period
 input ENUM_APPLIED_PRICE   EWOPriceSource = PRICE_MEDIAN;                            // Apply to
 input ENUM_MA_METHOD       EWOSmoothingMethod = MODE_SMMA;                           // Method
+sinput string __filters__;	
+input bool UseBCVolumeAreaFilter = true;
+input double BCVolumeAreaFilterVal = 100;
 
-sinput string params;
-input int MAShift=0;
-input ENUM_MA_METHOD MAMethodS= MODE_SMMA;
-input ENUM_MA_METHOD MAMethodL= MODE_EMA;
-input ENUM_APPLIED_PRICE MAPrice= PRICE_CLOSE;
-
-sinput string MoneyManagement;		
+sinput string MoneyManagement;	
+input double AllowedPriceGap = 0.0;	
 input double volume=0.2;
 input bool UseMoneyManagement = false;
+sinput string PointsMeasures;
 input double RiskPercent = 2;
 input double StopLoss = 0.0;
-input double AllowedPriceGap = 0.0;
-
+input double TakeProfit = 0.0;
 
 sinput string CashMeasures;
 input bool UseTakeProfitCash=true;
@@ -111,16 +120,17 @@ input bool UseTrailingStop = false;
 input int TrailingStop = 0;
 input int MinimumProfit = 0;
 input int Step = 0; 
-input bool AutoStopLossSet = false;
-input bool UseFibProfitLevel = true;
-sinput string __filters__;	
-input bool UseBCVolumeAreaFilter = true;
-input double BCVolumeAreaFilterVal = 100;
+sinput string __fibs__;	
+input bool AutoStopLossSet = true;
+input bool UseFibProfitLevel_ = true;
+input bool _StopLoss_Fib = 50.0;
+input bool _BreakEven_Fib = 161.8;
+input bool _TakeProfit_Fib = 200.0;
 
-sinput string BE;		// Break Even
-input bool UseBreakEven = false;
-input int BreakEvenProfit = 5;
-input int LockProfit = 2;
+sinput string BE__points__;		// Break Even
+input bool UseBreakEven = true;
+input int BreakEvenProfit_ = 0;
+input int LockProfitPercentage = 5;
 
 sinput string ALERTS;		
 input bool   alertsOnCurrent = false;
@@ -133,7 +143,7 @@ input bool   alertsMiniSignals  = false;
 input string     APIkey      = "1819898948:AAFRCYc45DMt_hTjwRtUuk58iRIvc1bRcIs";
 input string     Channel_ID  = "-590157620";
 //-------------------------
-string EA_Version = "#Jordan_UNIV EA-V3.8";
+string EA_Version = "#Jordan_UNIV EA-V3.9";
 
 
 
@@ -184,6 +194,17 @@ string ActivateSys3FinalSignal = "NONE";
 bool ActivateSys3 = ActivateSys3_;
 bool ActivateSys2 = ActivateSys2_;
 bool ActivateSys1 = ActivateSys1_;
+datetime lastBuySignalTime,lastSellSignalTime;
+
+double profitFibLevel = 0.0;
+double lossFibLevel = 0.0;
+double stopLoss = 0.0;
+double takeProfit = 0.0; 
+int BreakEvenProfit = BreakEvenProfit_;
+//int LockProfitPercentage = LockProfitPercentage_;
+int LockProfit = 0;
+double stopLossMM = 0.0;
+bool UseFibProfitLevel = UseFibProfitLevel_;
 
 
 MqlTradeRequest request;
@@ -199,6 +220,7 @@ int OnInit(){
    ActivateSys3 = ActivateSys3_;
    ActivateSys2 = ActivateSys2_;
    ActivateSys1 = ActivateSys1_;
+   UseFibProfitLevel = UseFibProfitLevel_;
 
 	ArraySetAsSeries(candleTimes,true);
 	onStartEquity = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -251,6 +273,10 @@ int OnInit(){
    
     buyPlaced = true;
     sellPlaced = true;
+    
+    //Setting stoplevels
+	   stopLoss = StopLoss;
+	   takeProfit = TakeProfit;
    
 	return(0);
 }
@@ -294,9 +320,11 @@ if(!useStaticMoneyRecover){
        if(curBalProfit < 0){//if we are in drawdown
          takeProfitCash = takeProfitCash_ + MathAbs(curBalProfit);
          takeProfitCashLongs = takeProfitCashLongs_ + MathAbs(curBalProfit);
+         UseFibProfitLevel = false;//switch off fib target
         }else {
          takeProfitCash = takeProfitCash_;
          takeProfitCashLongs = takeProfitCashLongs_;
+         UseFibProfitLevel = true;//switch on fib target
        }
    }else{//recover any drawdown even in positive
       if(highestBalCaptured == 0.0){
@@ -304,14 +332,16 @@ if(!useStaticMoneyRecover){
       }else if(curBal > highestBalCaptured ){
          highestBalCaptured = curBal;
       }
-      //if cur bal goes below highest coved
+      //if cur bal goes below highest covered
       if(curBal < highestBalCaptured){
          double new_adv_target = MathAbs(highestBalCaptured - curBal);
           takeProfitCash = takeProfitCash_ + MathAbs(new_adv_target);
           takeProfitCashLongs = takeProfitCashLongs_ + MathAbs(new_adv_target);
+          UseFibProfitLevel = false;//switch off fib target
       }else{//if curbal is above highBalCaptured or equal, go back to original targets
           takeProfitCash = takeProfitCash_;
           takeProfitCashLongs = takeProfitCashLongs_;
+          UseFibProfitLevel = true;//switch on fib target
       }
    
    }
@@ -334,10 +364,7 @@ if(!useStaticMoneyRecover){
 	if(checkNewCandle(candleTimes,lastCandleTime)){//Execute strictly Once on every Candle
 	
 	   //TakeChartScreenShot("Test");
-	// Money management
-		if(UseMoneyManagement == true)  tradeSize = MoneyManagement(_Symbol,volume,RiskPercent,StopLoss);
-		else tradeSize = VerifyVolume(_Symbol,volume);
-		tradeSize = volume;
+
 		
 		double maS[];
 		double maL[];
@@ -408,8 +435,8 @@ if(!useStaticMoneyRecover){
 		}*/
 		//strengthern signal
 		if(UseBCVolumeAreaFilter){
-		   if(BCVolumeArea[0] > 0 && BCVolumeArea[1] > 0 && BCVolumeArea[2] > 0 && BCVolumeArea[3] > 0) BCVolumeAreaSignal = "BUY";
-		   if(BCVolumeArea[0] < 0 && BCVolumeArea[1] < 0 && BCVolumeArea[2] < 0 && BCVolumeArea[3] < 0) BCVolumeAreaSignal = "SELL";
+		   if(BCVolumeArea[0] > 0 && BCVolumeArea[1] > 0 && BCVolumeArea[2] > 0 /*&& BCVolumeArea[3] > 0*/) BCVolumeAreaSignal = "BUY";
+		   if(BCVolumeArea[0] < 0 && BCVolumeArea[1] < 0 && BCVolumeArea[2] < 0 /*&& BCVolumeArea[3] < 0*/) BCVolumeAreaSignal = "SELL";
 		}else{
 		   BCVolumeAreaSignal = "NONE";
 		}
@@ -576,7 +603,66 @@ if(!useStaticMoneyRecover){
 		   if(BCVolumeAreaSignalMain =="BUY" && BCVolumeAreaSignal == "BUY"){
 		            if(ActivateSys3FinalSignal == "SELL"){
 		                  buyPlaced = false;
-                        Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+                        //Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+		                  lastBuySignalTime = getCandleTime(candleTimes,lastCandleTime,0);
+		                  
+		                  //--------fibs
+		                  //for buys get the lowest price  betwwen previous sell, set it to selltrailP
+		                  //+ get  number of candles between current signal and last sell
+		                  int n_candles = 0;
+		                  n_candles =Bars(_Symbol,PERIOD_CURRENT,lastSellSignalTime,lastBuySignalTime);
+		                  //+ get the lowest in the series
+		                  if(n_candles <= 0 || n_candles > 500 || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
+		                     n_candles = 200;
+		                  }
+		                  double lowestP = Price.LowestLow(_Symbol,PERIOD_CURRENT,n_candles,0);
+		                  //printf("fib_lowestP");
+               		   //printf(lowestP);
+		                  
+		                  //--Getting Fib Levels
+		                  double fib_range = Price.GetFibLevels(lowestP, 0,  0, 0, "BUY");
+		                  double fib_261_8 = Trade.NormalizePrice(lowestP + (fib_range*2.618));
+               		   double fib_200_0 = Trade.NormalizePrice(lowestP + (fib_range*2.000));
+               		   double fib_161_8 = Trade.NormalizePrice(lowestP + (fib_range*1.618));
+               		   //printf("buy_fib_161_8");
+               		   //printf(fib_161_8);
+               		   double fib_080_0 = Trade.NormalizePrice(lowestP + (fib_range*0.800));
+               		   double fib_061_8 = Trade.NormalizePrice(lowestP + (fib_range*0.618));
+               		   double fib_050_0 = Trade.NormalizePrice(lowestP + (fib_range*0.500));
+               		   double fib_038_2 = Trade.NormalizePrice(lowestP + (fib_range*0.382));
+               		   double fib_023_6 = Trade.NormalizePrice(lowestP + (fib_range*0.236));
+               		   
+               		   //Make them dynamic
+               		   //double profitFibLevel = 0.0;
+               		   if(UseFibProfitLevel) profitFibLevel = fib_200_0;
+               		   //double lossFibLevel = 0.0;
+               		   if(AutoStopLossSet) {lossFibLevel = fib_050_0;}
+               		   stopLossMM = fib_050_0;//can change it to fib_061_8
+               		   
+               		   //profitFibLevel = fib_161_8;
+               		   //lossFibLevel = fib_023_6;
+               		   
+               		   //Determine BE
+               		   double be_range = MathAbs(fib_161_8 - SymbolInfoDouble(_Symbol,SYMBOL_ASK));
+               		   if(BreakEvenProfit_ == 0 && be_range > 0){
+               		      double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+               		      BreakEvenProfit = be_range/point;//converting it to points
+               		      LockProfit = (be_range * (LockProfitPercentage/100))/point;
+               		      
+               		   }else BreakEvenProfit = BreakEvenProfit_;
+               		   
+               		   
+               		   string msg = " => [BUY Price: "+SymbolInfoDouble(_Symbol,SYMBOL_ASK)+"] \n"+
+               			             "[LOT: "+tradeSize+"] \n"+
+               			             "[SL-1:"+fib_050_0+"] \n"+
+               			             "[SL-2:"+fib_061_8+"] \n"+
+               			             "[TP-1:"+fib_161_8+"] \n"+
+               			             "[TP-2:"+fib_200_0+"] \n"+
+               			             " *"+EA_Version+"*";
+               			 
+               			 Price.SendAlert("BUY", msg, alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+		                   printf(msg);
+		                  //--------fibs
 		            }
 		            ActivateSys3FinalSignal = "BUY";
 		           
@@ -584,7 +670,63 @@ if(!useStaticMoneyRecover){
 		   }else if(BCVolumeAreaSignalMain =="SELL" && BCVolumeAreaSignal == "SELL"){
 		            if(ActivateSys3FinalSignal == "BUY"){
 		                  sellPlaced = false;
-                     	Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+                     	//Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+		                  lastSellSignalTime = getCandleTime(candleTimes,lastCandleTime,0);
+		                  //--------fibs
+		                  //for buys get the lowest price  betwwen previous sell, set it to selltrailP
+		                  //+ get  number of candles between current signal and last sell
+		                  int n_candles = 0;
+		                  n_candles =Bars(_Symbol,PERIOD_CURRENT,lastSellSignalTime,lastBuySignalTime);
+		                  //+ get the lowest in the series
+		                  double highestP = Price.HighestHigh(_Symbol,PERIOD_CURRENT,n_candles,0);
+		                  if(n_candles <= 0 || n_candles > 500 || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
+		                     n_candles = 200;
+		                  }
+		                  //printf("fib_highestP");
+               		   //printf(highestP);
+		                  //--Getting Fib Levels
+		                  double fib_range = Price.GetFibLevels(0, highestP ,  0, 0, "SELL");
+		                  
+		                  double fib_261_8 = Trade.NormalizePrice(highestP - (fib_range*2.618));
+               		   double fib_200_0 = Trade.NormalizePrice(highestP - (fib_range*2.000));
+               		   double fib_161_8 = Trade.NormalizePrice(highestP - (fib_range*1.618));
+               		   //printf("sell_fib_161_8");
+               		   //printf(fib_161_8);
+               		   double fib_080_0 = Trade.NormalizePrice(highestP - (fib_range*0.800));
+               		   double fib_061_8 = Trade.NormalizePrice(highestP - (fib_range*0.618));
+               		   double fib_050_0 = Trade.NormalizePrice(highestP - (fib_range*0.500));
+               		   double fib_038_2 = Trade.NormalizePrice(highestP - (fib_range*0.382));
+               		   double fib_023_6 = Trade.NormalizePrice(highestP - (fib_range*0.236));
+               		   
+               		   //Make them dynamic
+               		   //double profitFibLevel = 0.0;
+               		   if(UseFibProfitLevel) profitFibLevel = fib_200_0;
+               		   //double lossFibLevel = 0.0;
+               		   if(AutoStopLossSet) {lossFibLevel = fib_050_0;}
+               		   stopLossMM = fib_050_0;//can change it to fib_061_8
+               		   
+               		   //Determine BE
+               		   double be_range = MathAbs(fib_161_8 - SymbolInfoDouble(_Symbol,SYMBOL_BID));
+               		   if(BreakEvenProfit_ == 0 && be_range > 0){
+               		      double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+               		      BreakEvenProfit = be_range/point;//converting it to points
+               		      LockProfit = (be_range * (LockProfitPercentage/100))/point;
+               		      
+               		   }else BreakEvenProfit = BreakEvenProfit_;
+               		   
+               		   string msg = " => [SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
+   			             "[LOT : "+tradeSize+"] \n"+
+   			             "[SL-1: "+fib_050_0+"] \n"+
+   			             "[SL-2: "+fib_061_8+"] \n"+
+   			             "[TP-1: "+fib_161_8+"] \n"+
+   			             "[TP-2: "+fib_200_0+"] \n"+
+   			             " *"+EA_Version+"*";
+			             
+            			  Price.SendAlert("SELL", msg, alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
+            			  printf(msg);
+		   
+		                  
+		                  
 		            }
 		            ActivateSys3FinalSignal = "SELL";
 		              
@@ -812,6 +954,16 @@ bool CheckDailyTarget(){
 }
 
 bool makePosition(orderType type){
+
+	   
+	   if(stopLossMM == 0.0 && StopLoss > 0.0){
+	      stopLossMM = StopLoss;
+	   }
+	   // Money management
+		if(UseMoneyManagement == true) { tradeSize = MoneyManagement(_Symbol,volume,RiskPercent,stopLossMM);}
+		else {tradeSize = VerifyVolume(_Symbol,volume);}
+		tradeSize = volume;
+		
    int tradeCount = MaximumTradeCount;
    while(tradeCount > 0){
       //logic to buy or sell once in Crushing or booming market
@@ -841,6 +993,11 @@ bool makePosition(orderType type){
    	   Price.Update(_Symbol,_Period);
    	   request.sl=NormalizeDouble(Price.Open(1),_Digits);
    	}*/
+   	//setting stop levels
+   	if(UseFibProfitLevel) request.tp = NormalizeDouble(profitFibLevel,_Digits) ;
+      if(AutoStopLossSet) request.sl = NormalizeDouble(lossFibLevel, _Digits);
+      
+      
    
    	if(type==orderBuy){
    	   //Close All Sells
@@ -848,8 +1005,8 @@ bool makePosition(orderType type){
    		//Buy
    		request.type=ORDER_TYPE_BUY;
    		price=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_ASK),_Digits);
-   		//request.sl=NormalizeDouble(price-stopLoss,_Digits);
-   		//request.tp=NormalizeDouble(price+takeProfit,_Digits);
+   		if(stopLoss > 0.0) request.sl=NormalizeDouble(price-stopLoss,_Digits);
+   		if(takeProfit > 0.0)request.tp=NormalizeDouble(price+takeProfit,_Digits);
    		
    	}else if(type==orderSell){
    	   //Close All Buys
@@ -857,8 +1014,8 @@ bool makePosition(orderType type){
    		//Sell
    		request.type=ORDER_TYPE_SELL;
    		price=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_BID),_Digits);
-   		//request.sl=NormalizeDouble(price+stopLoss,_Digits);
-   		//request.tp=NormalizeDouble(price-takeProfit,_Digits);
+   		if(stopLoss > 0.0)request.sl=NormalizeDouble(price+stopLoss,_Digits);
+   		if(takeProfit > 0.0)request.tp=NormalizeDouble(price-takeProfit,_Digits);
    
    	}
    	request.deviation=10;
@@ -939,6 +1096,12 @@ bool checkNewCandle2(datetime &candles[],datetime &last){
 	}
 
 	return newCandle;
+}
+
+datetime getCandleTime(datetime &candles[],datetime &last, int seq){
+	CopyTime(_Symbol,_Period,0,3,candles);
+	last = candles[seq];
+	return last;
 }
 
 bool closePosition(){
