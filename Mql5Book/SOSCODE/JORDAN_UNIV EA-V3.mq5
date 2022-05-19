@@ -74,7 +74,7 @@ input double BCVolumeAreaFilterVal = 100;
 sinput string MoneyManagement;	
 input double AllowedPriceGap = 0.0;	
 input double volume=0.2;
-input bool UseMoneyManagement = false;
+input bool UseMoneyManagement = true;
 sinput string PointsMeasures;
 input double RiskPercent = 2;
 input double StopLoss = 0.0;
@@ -143,7 +143,7 @@ input bool   alertsMiniSignals  = false;
 input string     APIkey      = "1819898948:AAFRCYc45DMt_hTjwRtUuk58iRIvc1bRcIs";
 input string     Channel_ID  = "-590157620";
 //-------------------------
-string EA_Version = "#Jordan_UNIV EA-V3.9";
+string EA_Version = "#Jordan_UNIV EA-V4.0";
 
 
 
@@ -650,7 +650,8 @@ if(!useStaticMoneyRecover){
                		      LockProfit = (be_range * (LockProfitPercentage/100))/point;
                		      
                		   }else BreakEvenProfit = BreakEvenProfit_;
-               		   
+               		   //Determine/set lots
+		                   SetLotSize(stopLossMM);
                		   
                		   string msg = " => [BUY Price: "+SymbolInfoDouble(_Symbol,SYMBOL_ASK)+"] \n"+
                			             "[LOT: "+tradeSize+"] \n"+
@@ -713,6 +714,9 @@ if(!useStaticMoneyRecover){
                		      LockProfit = (be_range * (LockProfitPercentage/100))/point;
                		      
                		   }else BreakEvenProfit = BreakEvenProfit_;
+               		   
+               		   //Determine/set lots
+		                   SetLotSize(stopLossMM);
                		   
                		   string msg = " => [SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
    			             "[LOT : "+tradeSize+"] \n"+
@@ -1476,6 +1480,14 @@ string DayOfWeek(int dow){
    string day[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
    return day[dow];
 }
+
+//Set lot size
+void SetLotSize(double stopLossMM_){
+  // Money management
+		if(UseMoneyManagement == true) { tradeSize = MoneyManagement(_Symbol,volume,RiskPercent,stopLossMM_);}
+		else {tradeSize = VerifyVolume(_Symbol,volume);}
+		tradeSize = volume;
+  }
 //+------------------------------------------------------------------+
 
    
