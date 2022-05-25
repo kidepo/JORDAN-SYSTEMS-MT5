@@ -1,6 +1,6 @@
 #property copyright "Jordan Capital Inc."
 #property link      "https://www.jordancapital.com"
-#property version   "2022.05.19@17:20"
+#property version   "2022.05.25@11:30"
 /*
 *Static target re-calculation in drawdown
 *Add BC Volume Area to filter trades on range
@@ -82,7 +82,7 @@ input double TakeProfit = 0.0;
 
 sinput string CashMeasures;
 input bool UseTakeProfitCash=true;
-input double takeProfitCash_=10.0;
+input double takeProfitCash_=5.0;
 input double takeProfitCashLongs_=20.0;
 input double DailyProfitCash=40.0;
 input double lossToStopDayTrading=10.0;
@@ -123,14 +123,14 @@ input int Step = 0;
 sinput string __fibs__;	
 input bool AutoStopLossSet = true;
 input bool UseFibProfitLevel_ = true;
-input bool _StopLoss_Fib = 50.0;
-input bool _BreakEven_Fib = 161.8;
-input bool _TakeProfit_Fib = 200.0;
+input double _StopLoss_Fib = 50.0;
+input double _BreakEven_Fib = 161.8;
+input double _TakeProfit_Fib = 200.0;
 
 sinput string BE__points__;		// Break Even
 input bool UseBreakEven = true;
 input int BreakEvenProfit_ = 0;
-input int LockProfitPercentage = 5;
+input double LockProfitPercentage = 5;
 
 sinput string ALERTS;		
 input bool   alertsOnCurrent = false;
@@ -138,12 +138,12 @@ input bool   alertsMessage   = false;
 input bool   alertsOnPhone   = false;
 input bool   alertsEmail     = false;
 input bool   alertsSound     = false;
-input bool   alertsTelegram  = true;
+input bool   alertsTelegram  = false;
 input bool   alertsMiniSignals  = false;
 input string     APIkey      = "1819898948:AAFRCYc45DMt_hTjwRtUuk58iRIvc1bRcIs";
 input string     Channel_ID  = "-590157620";
 //-------------------------
-string EA_Version = "#Jordan_UNIV EA-V4.0";
+string EA_Version = "#Jordan_UNIV EA-V4.1";
 
 
 
@@ -215,6 +215,8 @@ MqlTradeCheckResult checkResult;
 //| start function                                                   |
 //+------------------------------------------------------------------+
 int OnInit(){
+
+//Print("Client ACCOUNT_LOGIN = ", AccountInfoInteger(ACCOUNT_LOGIN));
    if(ActivateSys3 || UseBCVolumeAreaFilter)
       {TesterHideIndicators(true);}
    ActivateSys3 = ActivateSys3_;
@@ -600,6 +602,8 @@ if(!useStaticMoneyRecover){
 		   }
 		   
 		   //SYSTEM 3 ALERTS
+		   double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+		   double StopLevel = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
 		   if(BCVolumeAreaSignalMain =="BUY" && BCVolumeAreaSignal == "BUY"){
 		            if(ActivateSys3FinalSignal == "SELL"){
 		                  buyPlaced = false;
@@ -612,9 +616,10 @@ if(!useStaticMoneyRecover){
 		                  int n_candles = 0;
 		                  n_candles =Bars(_Symbol,PERIOD_CURRENT,lastSellSignalTime,lastBuySignalTime);
 		                  //+ get the lowest in the series
-		                  if(n_candles <= 0 || n_candles > 500 || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
+		                  if(n_candles <= 0 || lastBuySignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
 		                     n_candles = 200;
 		                  }
+		                  //iBarShift//use this to get left Border of fibo
 		                  double lowestP = Price.LowestLow(_Symbol,PERIOD_CURRENT,n_candles,0);
 		                  //printf("fib_lowestP");
                		   //printf(lowestP);
@@ -646,13 +651,14 @@ if(!useStaticMoneyRecover){
                		   double be_range = MathAbs(fib_161_8 - SymbolInfoDouble(_Symbol,SYMBOL_ASK));
                		   if(BreakEvenProfit_ == 0 && be_range > 0){
                		      double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+               		      double StopLevel = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);//points
                		      BreakEvenProfit = be_range/point;//converting it to points
-               		      LockProfit = (be_range * (LockProfitPercentage/100))/point;
+               		      LockProfit = ((be_range * (LockProfitPercentage/100)) /point) + StopLevel;
+               		      printf("Break Even When points are =>"+BreakEvenProfit+" ,Points to lock =>"+ LockProfit+ " ::StopLevel => "+StopLevel);
                		      
                		   }else BreakEvenProfit = BreakEvenProfit_;
                		   //Determine/set lots
-		                   SetLotSize(stopLossMM);
-               		   
+		                  SetLotSize(stopLossMM);
                		   string msg = " => [BUY Price: "+SymbolInfoDouble(_Symbol,SYMBOL_ASK)+"] \n"+
                			             "[LOT: "+tradeSize+"] \n"+
                			             "[SL-1:"+fib_050_0+"] \n"+
@@ -680,7 +686,7 @@ if(!useStaticMoneyRecover){
 		                  n_candles =Bars(_Symbol,PERIOD_CURRENT,lastSellSignalTime,lastBuySignalTime);
 		                  //+ get the lowest in the series
 		                  double highestP = Price.HighestHigh(_Symbol,PERIOD_CURRENT,n_candles,0);
-		                  if(n_candles <= 0 || n_candles > 500 || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
+		                  if(n_candles <= 0 || lastBuySignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
 		                     n_candles = 200;
 		                  }
 		                  //printf("fib_highestP");
@@ -710,14 +716,16 @@ if(!useStaticMoneyRecover){
                		   double be_range = MathAbs(fib_161_8 - SymbolInfoDouble(_Symbol,SYMBOL_BID));
                		   if(BreakEvenProfit_ == 0 && be_range > 0){
                		      double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+               		      double StopLevel = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
                		      BreakEvenProfit = be_range/point;//converting it to points
-               		      LockProfit = (be_range * (LockProfitPercentage/100))/point;
+               		      LockProfit = ((be_range * (LockProfitPercentage/100)) /point) + StopLevel;
+               		      printf("Break Even When points are =>"+BreakEvenProfit+" ,Points to lock =>"+ LockProfit+ " ::StopLevel => "+StopLevel);
                		      
                		   }else BreakEvenProfit = BreakEvenProfit_;
                		   
                		   //Determine/set lots
 		                   SetLotSize(stopLossMM);
-               		   
+		                   
                		   string msg = " => [SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
    			             "[LOT : "+tradeSize+"] \n"+
    			             "[SL-1: "+fib_050_0+"] \n"+
