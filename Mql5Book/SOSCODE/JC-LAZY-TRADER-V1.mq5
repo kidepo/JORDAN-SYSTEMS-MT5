@@ -1,6 +1,6 @@
 #property copyright "Jordan Capital Inc."
 #property link      "https://www.jordancapital.com"
-#property version   "2022.12.12@15:50"
+#property version   "2023.01.21@00:00"
 /*
 Added Sonic Trend Signal As SYSTEM 4//SupersonicTrendSignal
 ----------------------------------------
@@ -73,9 +73,9 @@ input int                  EWOSlowMA = 200;
 input int                  EWOCandleSeq = 1;                                          
 input ENUM_APPLIED_PRICE   EWOPriceSource = PRICE_MEDIAN;                            
 input ENUM_MA_METHOD       EWOSmoothingMethod = MODE_SMMA;
-sinput string strategy_4_SonicTrend;
+sinput string strategy_4_SonicTrend___________ACTIVATED;
 input bool ActivateSys4_ = true;
-input int SonicBarIndex = 0;
+input int SonicBarIndex = 1;
 input int SonicTrendValue = 100;
 input int SoniciFullPeriods = 1;
 input int Sonic3param = 0;
@@ -395,7 +395,7 @@ if(useStaticMoneyRecoverOnEquity){
      }
   
 	
-	if(checkNewCandle(candleTimes,lastCandleTime)){//Execute strictly Once on every Candle
+	if(true/*checkNewCandle(candleTimes,lastCandleTime) || SonicBarIndex == 0*/){//Execute strictly Once on every Candle
 	
 	   //TakeChartScreenShot("Test");
 
@@ -802,6 +802,7 @@ if(useStaticMoneyRecoverOnEquity){
       SetLotSize(stopLossMM);
       
 		if(SonicTrendSigBuy[SonicBarIndex] > 0 && SonicTrendSigBuy[SonicBarIndex] != EMPTY_VALUE){//SonicBarIndex = 0
+		    if(checkNewCandle(candleTimes,lastCandleTime) ){
       			//cross up
       			Print("Sonic Trend Signal Buy Appeared!");
       			//closePosition();
@@ -816,10 +817,11 @@ if(useStaticMoneyRecoverOnEquity){
    			             "[TP-1: --] \n"+
    			             " *"+EA_Version+"*";
       			Price.SendAlert("BUY", "\n "+msg+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
-      			
+      			}
       			
       		}
       if(SonicTrendSigSell[SonicBarIndex] > 0 && SonicTrendSigSell[SonicBarIndex] != EMPTY_VALUE){
+         if(checkNewCandle(candleTimes,lastCandleTime) ){
       			//cross down
       			Print("Sonic Trend Signal Sell Appeared!");
       			//closePosition();
@@ -832,7 +834,7 @@ if(useStaticMoneyRecoverOnEquity){
    			             "[TP-1: --] \n"+
    			             " *"+EA_Version+"*";
       			Price.SendAlert("SELL", "\n "+msg+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
-      			 
+      			} 
       		}
 		}
 		
