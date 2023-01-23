@@ -1,6 +1,6 @@
 #property copyright "Jordan Capital Inc."
 #property link      "https://www.jordancapital.com"
-#property version   "2022.05.25@12:43"
+#property version   "2022.11.03@12:55"
 /*
 *Static target re-calculation in drawdown
 *Add BC Volume Area to filter trades on range
@@ -65,14 +65,14 @@ input double BCVolumeAreaSignalVal = 200;
 input int BCVolumeAreaCandleSeq = 0;
 input bool UseElliotWaveOscillator = true;
 input string ElliotWaveOscillatorName = "Elliott Wave Oscillator-2-200";
-input int                  EWOFastMA = 2;                                            // Fast Period
+input int                  EWOFastMA = 2;                                            
 input int                  EWOSlowMA = 200; 
-input int                  EWOCandleSeq = 1;                                          // Slow Period
-input ENUM_APPLIED_PRICE   EWOPriceSource = PRICE_MEDIAN;                            // Apply to
-input ENUM_MA_METHOD       EWOSmoothingMethod = MODE_SMMA;                           // Method
+input int                  EWOCandleSeq = 1;                                          
+input ENUM_APPLIED_PRICE   EWOPriceSource = PRICE_MEDIAN;                            
+input ENUM_MA_METHOD       EWOSmoothingMethod = MODE_SMMA;
 sinput string __filters__;	
 input bool UseBCVolumeAreaFilter = true;
-input double BCVolumeAreaFilterVal = 100;
+input double BCVolumeAreaFilterVal = 150;
 
 sinput string MoneyManagement;	
 input double AllowedPriceGap = 0.0;	
@@ -126,7 +126,7 @@ input int TrailingStop = 0;
 input int MinimumProfit = 0;
 input int Step = 0; 
 sinput string __fibs__;	
-input bool AutoStopLossSet = false;
+input bool AutoStopLossSet = true;
 input bool UseFibProfitLevel_ = true;
 input double _StopLoss_Fib = 50.0;
 input double _BreakEven_Fib = 161.8;
@@ -649,7 +649,7 @@ if(useStaticMoneyRecoverOnEquity){
                		   //double profitFibLevel = 0.0;
                		   if(UseFibProfitLevel) profitFibLevel = fib_200_0;
                		   //double lossFibLevel = 0.0;
-               		   if(AutoStopLossSet) {lossFibLevel = fib_023_6;}
+               		   if(AutoStopLossSet) {lossFibLevel = fib_050_0;}
                		   stopLossMM = MathAbs(fib_050_0 - SymbolInfoDouble(_Symbol,SYMBOL_ASK)) / point;//can change it to fib_061_8
                		   
                		   //profitFibLevel = fib_161_8;
@@ -721,7 +721,7 @@ if(useStaticMoneyRecoverOnEquity){
                		   //double profitFibLevel = 0.0;
                		   if(UseFibProfitLevel) profitFibLevel = fib_200_0;
                		   //double lossFibLevel = 0.0;
-               		   if(AutoStopLossSet) {lossFibLevel = fib_023_6;}
+               		   if(AutoStopLossSet) {lossFibLevel = fib_050_0;}
                		   stopLossMM = MathAbs(fib_050_0 - SymbolInfoDouble(_Symbol,SYMBOL_BID)) / point;//can change it to fib_061_8
                		   
                		   //Determine BE

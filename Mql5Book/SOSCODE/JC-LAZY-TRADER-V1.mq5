@@ -1,7 +1,9 @@
 #property copyright "Jordan Capital Inc."
 #property link      "https://www.jordancapital.com"
-#property version   "2022.05.25@12:43"
+#property version   "2022.12.12@15:50"
 /*
+Added Sonic Trend Signal As SYSTEM 4//SupersonicTrendSignal
+----------------------------------------
 *Static target re-calculation in drawdown
 *Add BC Volume Area to filter trades on range
 Enable multi-asset trading(trd closing, target re-calcualtions )
@@ -17,6 +19,7 @@ Added Elliot Wave Oscillator
 --select to find existing position so as to break even, avoid position not found
 --check if to close by cash by first determining if the current postions have take profit set or not
 */
+
 #include <Mql5Book\Trade.mqh>
 CTradeC Trade;
 #include <Trade\XTrade.mqh>
@@ -60,23 +63,33 @@ input ENUM_APPLIED_PRICE MAPrice= PRICE_CLOSE;
 sinput string _____________;
 
 sinput string __strategy_3_BCVArea;	
-input bool ActivateSys3_ = true;
+input bool ActivateSys3_ = false;
 input double BCVolumeAreaSignalVal = 200;
 input int BCVolumeAreaCandleSeq = 0;
-input bool UseElliotWaveOscillator = true;
+input bool UseElliotWaveOscillator = false;
 input string ElliotWaveOscillatorName = "Elliott Wave Oscillator-2-200";
-input int                  EWOFastMA = 2;                                            // Fast Period
+input int                  EWOFastMA = 2;                                            
 input int                  EWOSlowMA = 200; 
-input int                  EWOCandleSeq = 1;                                          // Slow Period
-input ENUM_APPLIED_PRICE   EWOPriceSource = PRICE_MEDIAN;                            // Apply to
-input ENUM_MA_METHOD       EWOSmoothingMethod = MODE_SMMA;                           // Method
+input int                  EWOCandleSeq = 1;                                          
+input ENUM_APPLIED_PRICE   EWOPriceSource = PRICE_MEDIAN;                            
+input ENUM_MA_METHOD       EWOSmoothingMethod = MODE_SMMA;
+sinput string strategy_4_SonicTrend;
+input bool ActivateSys4_ = true;
+input int SonicBarIndex = 0;
+input int SonicTrendValue = 100;
+input int SoniciFullPeriods = 1;
+input int Sonic3param = 0;
+input bool AllowSonicStopLevel = true;
+input int SonicStopMAValue = 50;
+input ENUM_MA_METHOD SonicMAMethod= MODE_SMMA;
+input ENUM_APPLIED_PRICE SonicMAPrice= PRICE_CLOSE;
+
 sinput string __filters__;	
 input bool UseBCVolumeAreaFilter = true;
 input double BCVolumeAreaFilterVal = 100;
-
 sinput string MoneyManagement;	
 input double AllowedPriceGap = 0.0;	
-input double volume=0.2;
+input double volume=0.01;
 input bool UseMoneyManagement = true;
 sinput string PointsMeasures;
 input double RiskPercent = 2;
@@ -96,7 +109,7 @@ input bool UseTakeProfitPercentage=false;
 input double takeProfitPercentage=6.0;
 input double takeProfitPercentageLongs=30.0;
 input double DailyProfitPercentage=50;
-input double PercentagelossToStopDayTrading = 50;
+input double PercentagelossToStopDayTrading = 10;
 //input double stopLossPercentage=0.0;
 //input bool TradeLongsOnce=true;
 
@@ -126,7 +139,7 @@ input int TrailingStop = 0;
 input int MinimumProfit = 0;
 input int Step = 0; 
 sinput string __fibs__;	
-input bool AutoStopLossSet = false;
+input bool AutoStopLossSet = true;
 input bool UseFibProfitLevel_ = true;
 input double _StopLoss_Fib = 50.0;
 input double _BreakEven_Fib = 161.8;
@@ -135,20 +148,20 @@ input double _TakeProfit_Fib = 200.0;
 sinput string BE__points__;		// Break Even
 input bool UseBreakEven = true;
 input int BreakEvenProfit_ = 0;
-input double LockProfitPercentage = 5;
+input double LockProfitPercentage = 2;
 
 sinput string ALERTS;		
 input bool   alertsOnCurrent = false;
 input bool   alertsMessage   = false;
-input bool   alertsOnPhone   = false;
+input bool   alertsOnPhone   = true;
 input bool   alertsEmail     = false;
 input bool   alertsSound     = false;
 input bool   alertsTelegram  = false;
 input bool   alertsMiniSignals  = false;
 input string     APIkey      = "1819898948:AAFRCYc45DMt_hTjwRtUuk58iRIvc1bRcIs";
-input string     Channel_ID  = "-590157620";
+input string     Channel_ID  = "-1001860762374";
 //-------------------------
-string EA_Version = "#Jordan_UNIV EA-V4.1";
+string EA_Version = "#JC-Lazy-Trader-v1";
 
 
 
@@ -161,6 +174,7 @@ datetime candleTimes[],lastCandleTime;
 string CurSignal="";
 string CurSignalNonLag="";
 string CurTrend;
+string SonicTrendSignal;
 string CurTrendNonLag;
 int CandleSeq=1;
 int MagicNumber=0;
@@ -199,6 +213,7 @@ string ActivateSys3FinalSignal = "NONE";
 bool ActivateSys3 = ActivateSys3_;
 bool ActivateSys2 = ActivateSys2_;
 bool ActivateSys1 = ActivateSys1_;
+bool ActivateSys4 = ActivateSys4_;
 datetime lastBuySignalTime,lastSellSignalTime;
 
 double profitFibLevel = 0.0;
@@ -211,7 +226,7 @@ int LockProfit = 0;
 double stopLossMM = 0.0;
 bool UseFibProfitLevel = UseFibProfitLevel_;
 bool FibProfitUsed = false;
-
+double sonicSL = 0.0;
 
 MqlTradeRequest request;
 MqlTradeResult result;
@@ -223,11 +238,11 @@ MqlTradeCheckResult checkResult;
 int OnInit(){
 //TakeChartScreenShot("Test2");
 //Print("Client ACCOUNT_LOGIN = ", AccountInfoInteger(ACCOUNT_LOGIN));
-   if(ActivateSys3 || UseBCVolumeAreaFilter)
-      {TesterHideIndicators(true);}
+   if(ActivateSys3 || UseBCVolumeAreaFilter){TesterHideIndicators(true);}
    ActivateSys3 = ActivateSys3_;
    ActivateSys2 = ActivateSys2_;
    ActivateSys1 = ActivateSys1_;
+   ActivateSys4 =ActivateSys4_;
    UseFibProfitLevel = UseFibProfitLevel_;
 
 	ArraySetAsSeries(candleTimes,true);
@@ -264,9 +279,17 @@ int OnInit(){
       //EA_Version = EA_Version + ":[2]";
    }
    
+     if(ActivateSys4){
+      ActivateSys2 = false;
+      ActivateSys1 = false;
+      ActivateSys3 = false;
+      
+   }
+      
    if(ActivateSys3){
       ActivateSys2 = false;
       ActivateSys1 = false;
+      ActivateSys4 = false;
       //EA_Version = EA_Version + ":[3]";
    }
    
@@ -274,9 +297,10 @@ int OnInit(){
       ActivateSys2 = false;
       ActivateSys1 = false;
       ActivateSys3 = true;
+      ActivateSys4 = false;
       //EA_Version = EA_Version + ":[4]";
    }
-   
+ 
    
     buyPlaced = true;
     sellPlaced = true;
@@ -301,6 +325,7 @@ void OnTickT(){
    int spread_points=(int)MathRound(spread/SymbolInfoDouble(Symbol(),SYMBOL_POINT));
    comm=comm+"Calculated spread = "+(string)spread_points+" points";
    Comment(comm);
+   Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
 }
 
 void OnTick(){
@@ -311,7 +336,9 @@ curBal = AccountInfoDouble(ACCOUNT_BALANCE);
 curProfit = NormalizeDouble((currentEquity - onStartEquity),_Digits);
 curBalProfit = NormalizeDouble((curBal - onStartEquity),_Digits);
 
-Comment("Copyright © 2022 Jordan Capital Inc. ["+MagicNumber+"], Loaded @ "+startTime+",\nStart Bal. "+onStartEquity+" Cur Bal. "+curBal+" Bal Profit. "+curBalProfit+" Peak Bal. "+highestBalCaptured+"\nCur EQt. "+ currentEquity +", Flt Profit. "+curProfit+"\nTrade Target: "+ takeProfitCash +"\nDaily;- Target: "+ DailyProfitCash +", Loss: "+lossToStopDayTrading+"\n\nSYS 1: "+CurTrend+"<--4MACandles [Default] (Active-"+ActivateSys1+") \nSYS 2: "+CurTrendNonLag+ "<--Non lag (Active-"+ActivateSys2+")\nSYS 3: "+ActivateSys3FinalSignal+ "<--J.C.I (Active-"+ActivateSys3+" [EWO-"+UseElliotWaveOscillator+", BCAVol-"+!UseElliotWaveOscillator+" | Signal- "+BCVolumeAreaSignalMain+"])***\n\nFilter: "+BCVolumeAreaSignal+" ... (Active-"+UseBCVolumeAreaFilter+")\nInner Locked: "+innerlocked+"\nPlace Trades: "+PlaceTrades+"\nPrice Gap: "+CurrentPriceGapRange+" (Allowed - "+AllowedPriceGap+")\n"+lastError);
+Comment("Copyright © 2023 Jordan Capital Inc. ["+MagicNumber+"], Loaded @ "+startTime+",\nStart Bal. "+onStartEquity+" Cur Bal. "+curBal+" Bal Profit. "+curBalProfit+" Peak Bal. "+highestBalCaptured+"\nCur EQt. "+ currentEquity +", Flt Profit. "+curProfit+"\nTrade Target: "+ takeProfitCash +"\nDaily;- Target: "+ DailyProfitCash +", Loss: "+lossToStopDayTrading+"\n\n"+
+    "SYS 1: "+CurTrend+"<--4MACandles (Active-"+ActivateSys1+") \nSYS 2: "+CurTrendNonLag+ "<--Non lag (Active-"+ActivateSys2+")\nSYS 3: "+ActivateSys3FinalSignal+ "<--J.C.I (Active-"+ActivateSys3+" [EWO-"+UseElliotWaveOscillator+", BCAVol-"+!UseElliotWaveOscillator+" | Signal- "+BCVolumeAreaSignalMain+"])* \nSYS 4: "+SonicTrendSignal+"<--SONIC TREND [Default] (Active-"+ActivateSys4+") \n\n"+
+    "Filter: "+BCVolumeAreaSignal+" ... (Active-"+UseBCVolumeAreaFilter+")\nInner Locked: "+innerlocked+"\nPlace Trades: "+PlaceTrades+"\nPrice Gap: "+CurrentPriceGapRange+" (Allowed - "+AllowedPriceGap+")\n"+lastError);
 //modify targets
 if(useStaticMoneyRecoverOnEquity){
    if(curProfit < 0){//if we are in drawdown
@@ -382,6 +409,9 @@ if(useStaticMoneyRecoverOnEquity){
 		double _4MACandlesValuesL[];
 		double BCVolumeArea[];
 		double BCVolumeAreaSig[];
+		double SonicTrendSigBuy[];
+		double SonicTrendSigSell[];
+		double SonicStopMA[];
 		ArraySetAsSeries(maS,true);
 		ArraySetAsSeries(maL,true);
 		ArraySetAsSeries(maSNonLag,true);
@@ -391,6 +421,9 @@ if(useStaticMoneyRecoverOnEquity){
 		ArraySetAsSeries(_4MACandlesValuesL,true);
 		ArraySetAsSeries(BCVolumeArea,true);
 		ArraySetAsSeries(BCVolumeAreaSig,true);
+		ArraySetAsSeries(SonicTrendSigBuy,true);
+		ArraySetAsSeries(SonicTrendSigSell,true);
+		ArraySetAsSeries(SonicStopMA,true);
 		
 		double candleClose[];
 		ArraySetAsSeries(candleClose,true);
@@ -412,7 +445,9 @@ if(useStaticMoneyRecoverOnEquity){
 		    }
 		
 		}
-		
+		//system 4//Sonic Trend System
+		int SonicTendHandle = iCustom(_Symbol,_Period, "SupersonicTrendSignal", SonicTrendValue,SoniciFullPeriods,Sonic3param);
+		int SonicStopMAHandle= iMA(_Symbol,_Period,SonicStopMAValue,MAShift,SonicMAMethod,SonicMAPrice);
 		
 		CopyBuffer(maSHandle,0,0,3,maS);
 		CopyBuffer(maLHandle,0,0,3,maL);//CopyBuffer(NonlagMaHandle,0,0,3,NonLagSignalValues);
@@ -428,7 +463,9 @@ if(useStaticMoneyRecoverOnEquity){
 		   {CopyBuffer(BCVolumeAreaHandle,0,0,5,BCVolumeArea);}
 		if(ActivateSys3)
 		   {CopyBuffer(BCVolumeAreaSigHandle,0,0,5,BCVolumeAreaSig);}
-		
+		CopyBuffer(SonicTendHandle,0,0,3,SonicTrendSigBuy);//Sonic Trend Signal Buy
+		CopyBuffer(SonicTendHandle,1,0,3,SonicTrendSigSell);//Sonic Trend Signal Buy
+		CopyBuffer(SonicStopMAHandle,0,0,3,SonicStopMA);//SOnic MA to determine stop level
 		
 		CopyClose(_Symbol,_Period,0,3,candleClose);
 		CurrentPriceGapRange = CalculatePriceGap(maL[0]);
@@ -649,7 +686,7 @@ if(useStaticMoneyRecoverOnEquity){
                		   //double profitFibLevel = 0.0;
                		   if(UseFibProfitLevel) profitFibLevel = fib_200_0;
                		   //double lossFibLevel = 0.0;
-               		   if(AutoStopLossSet) {lossFibLevel = fib_023_6;}
+               		   if(AutoStopLossSet) {lossFibLevel = fib_050_0;}
                		   stopLossMM = MathAbs(fib_050_0 - SymbolInfoDouble(_Symbol,SYMBOL_ASK)) / point;//can change it to fib_061_8
                		   
                		   //profitFibLevel = fib_161_8;
@@ -721,7 +758,7 @@ if(useStaticMoneyRecoverOnEquity){
                		   //double profitFibLevel = 0.0;
                		   if(UseFibProfitLevel) profitFibLevel = fib_200_0;
                		   //double lossFibLevel = 0.0;
-               		   if(AutoStopLossSet) {lossFibLevel = fib_023_6;}
+               		   if(AutoStopLossSet) {lossFibLevel = fib_050_0;}
                		   stopLossMM = MathAbs(fib_050_0 - SymbolInfoDouble(_Symbol,SYMBOL_BID)) / point;//can change it to fib_061_8
                		   
                		   //Determine BE
@@ -756,6 +793,47 @@ if(useStaticMoneyRecoverOnEquity){
 		              
 		   }
 		   
+		}else if(ActivateSys4){ 
+		sonicSL =  Trade.NormalizePrice(SonicStopMA[0]);
+		double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+	   //Determine/set lots
+	   if(AutoStopLossSet) {lossFibLevel = sonicSL;}//if AllowSonicStopLevel
+	   stopLossMM = MathAbs(sonicSL - SymbolInfoDouble(_Symbol,SYMBOL_ASK)) / point;//can change it to fib_061_8
+      SetLotSize(stopLossMM);
+      
+		if(SonicTrendSigBuy[SonicBarIndex] > 0 && SonicTrendSigBuy[SonicBarIndex] != EMPTY_VALUE){//SonicBarIndex = 0
+      			//cross up
+      			Print("Sonic Trend Signal Buy Appeared!");
+      			//closePosition();
+      			SonicTrendSignal="BUY";
+      			CloseAllTrades("SELL");//need to check on this
+      			buyPlaced = false; 
+      		   
+      			
+      			 string msg = " => [BUY Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
+   			             "[LOT : "+tradeSize+"] \n"+
+   			             "[SL-1: "+sonicSL+"] \n"+
+   			             "[TP-1: --] \n"+
+   			             " *"+EA_Version+"*";
+      			Price.SendAlert("BUY", "\n "+msg+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
+      			
+      			
+      		}
+      if(SonicTrendSigSell[SonicBarIndex] > 0 && SonicTrendSigSell[SonicBarIndex] != EMPTY_VALUE){
+      			//cross down
+      			Print("Sonic Trend Signal Sell Appeared!");
+      			//closePosition();
+      			SonicTrendSignal="SELL";
+      			CloseAllTrades("BUY");//need to check on this
+      			sellPlaced = false;
+      			string msg = " => [SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
+   			             "[LOT : "+tradeSize+"] \n"+
+   			             "[SL-1: "+sonicSL+"] \n"+
+   			             "[TP-1: --] \n"+
+   			             " *"+EA_Version+"*";
+      			Price.SendAlert("SELL", "\n "+msg+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
+      			 
+      		}
 		}
 		
 		 
@@ -792,7 +870,7 @@ if(useStaticMoneyRecoverOnEquity){
 	
 	if(NewBar.CheckNewBar(_Symbol,_Period) && TotalAccMaximumTradeCount > PositionsTotal() && PlaceTrades && !innerlocked){
 	
-	    if(((CurSignal=="BUY" && ActivateSys1) || (CurSignalNonLag =="BUY" && ActivateSys2) || (BCVolumeAreaSignalMain =="BUY" && ActivateSys3)) && !buyPlaced ){
+	    if(((CurSignal=="BUY" && ActivateSys1) || (CurSignalNonLag =="BUY" && ActivateSys2) || (BCVolumeAreaSignalMain =="BUY" && ActivateSys3) || (SonicTrendSignal=="BUY") && ActivateSys4) && !buyPlaced ){
 	     if(AllowedPriceGap > 0.0 && (AllowedPriceGap >= CurrentPriceGapRange) ){
 	         if(UseBCVolumeAreaFilter && BCVolumeAreaSignal == "BUY"){
       	      if(FullAutoPilot)
@@ -820,7 +898,7 @@ if(useStaticMoneyRecoverOnEquity){
              }
 		    }
 		 }
-		 if(((CurSignal=="SELL" && ActivateSys1)  || (CurSignalNonLag =="SELL" && ActivateSys2) || (BCVolumeAreaSignalMain =="SELL" && ActivateSys3)) && !sellPlaced){
+		 if(((CurSignal=="SELL" && ActivateSys1)  || (CurSignalNonLag =="SELL" && ActivateSys2) || (BCVolumeAreaSignalMain =="SELL" && ActivateSys3) || (SonicTrendSignal=="SELL") && ActivateSys4) && !sellPlaced){
    		 if(AllowedPriceGap > 0.0 && (AllowedPriceGap >= CurrentPriceGapRange) ){
    		   if(UseBCVolumeAreaFilter && BCVolumeAreaSignal == "SELL"){
          	    if(FullAutoPilot)
