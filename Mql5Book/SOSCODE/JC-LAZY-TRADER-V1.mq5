@@ -236,7 +236,8 @@ MqlTradeCheckResult checkResult;
 //| start function                                                   |
 //+------------------------------------------------------------------+
 int OnInit(){
-//TakeChartScreenShot("Test2");
+//check time frame, best entry so far 1m,5m
+
 //Print("Client ACCOUNT_LOGIN = ", AccountInfoInteger(ACCOUNT_LOGIN));
    if(ActivateSys3 || UseBCVolumeAreaFilter){TesterHideIndicators(true);}
    ActivateSys3 = ActivateSys3_;
@@ -795,6 +796,7 @@ if(useStaticMoneyRecoverOnEquity){
 		   
 		}else if(ActivateSys4){ 
 		sonicSL =  Trade.NormalizePrice(SonicStopMA[0]);
+		
 		double point = SymbolInfoDouble(_Symbol,SYMBOL_POINT);
 	   //Determine/set lots
 	   if(AutoStopLossSet) {lossFibLevel = sonicSL;}//if AllowSonicStopLevel
@@ -809,6 +811,11 @@ if(useStaticMoneyRecoverOnEquity){
       			SonicTrendSignal="BUY";
       			CloseAllTrades("SELL");//need to check on this
       			buyPlaced = false; 
+      			
+      			//adjust stop loss
+         		if(sonicSL > SonicTrendSigBuy[SonicBarIndex]){
+         		   sonicSL = SonicTrendSigBuy[SonicBarIndex];
+         		}
       		   
       			
       			 string msg = " => [BUY Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
@@ -828,6 +835,12 @@ if(useStaticMoneyRecoverOnEquity){
       			SonicTrendSignal="SELL";
       			CloseAllTrades("BUY");//need to check on this
       			sellPlaced = false;
+      			
+      			//adjust stop loss
+         		if(sonicSL < SonicTrendSigSell[SonicBarIndex]){
+         		   sonicSL = SonicTrendSigSell[SonicBarIndex];
+         		}
+         		
       			string msg = " => [SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
    			             "[LOT : "+tradeSize+"] \n"+
    			             "[SL-1: "+sonicSL+"] \n"+
