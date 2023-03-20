@@ -20,7 +20,7 @@
 
 // Trade
 #include <Mql5Book\Trade.mqh>
-CTrade Trade;
+CTradeC Trade;
 
 // Price
 #include <Mql5Book\Price.mqh>

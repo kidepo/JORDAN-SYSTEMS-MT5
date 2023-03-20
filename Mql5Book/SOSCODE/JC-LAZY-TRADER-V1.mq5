@@ -1,6 +1,6 @@
 #property copyright "Jordan Capital Inc."
 #property link      "https://www.jordancapital.com"
-#property version   "2023.02.08@20:30"
+#property version   "2023.03.08@14:30"
 /*
 Added Sonic Trend Signal As SYSTEM 4//SupersonicTrendSignal
 ----------------------------------------
@@ -89,10 +89,10 @@ input bool UseBCVolumeAreaFilter = false;
 input double BCVolumeAreaFilterVal = 100;
 sinput string __MoneyManagement__;	
 input bool UseMoneyManagement = true;
+input double RiskPercent = 2;
 input double volume=0.01;
 sinput string PointsMeasures;
 input double AllowedPriceGap = 0.0;	
-input double RiskPercent = 2;
 input double StopLoss = 0.0;
 input double TakeProfit = 0.0;
 
@@ -100,8 +100,8 @@ sinput string CashMeasures;
 input bool UseTakeProfitCash=true;
 input double takeProfitCash_=5.0;
 input double takeProfitCashLongs_=20.0;
-input double DailyProfitCash=40.0;
-input double lossToStopDayTrading=10.0;
+input double DailyProfitCash=100.0;
+input double lossToStopDayTrading=100.0;
 //input double stopLossCash=0.0;
 
 sinput string PercentageMeasures;
@@ -141,12 +141,13 @@ input int Step = 0;
 sinput string __fibs__;	
 input bool AutoStopLossSet = true;
 input bool UseFibProfitLevel_ = true;
+input bool StaticFibo = false;
 input double _StopLoss_Fib = 50.0;
 input double _BreakEven_Fib = 161.8;
 input double _TakeProfit_Fib = 200.0;
 
 sinput string BE__points__;		// Break Even
-input bool UseBreakEven = true;
+input bool UseBreakEven = false;
 input int BreakEvenProfit_ = 0;
 input double LockProfitPercentage = 2;
 
@@ -347,21 +348,21 @@ if(useStaticMoneyRecoverOnEquity){
    if(curProfit < 0){//if we are in drawdown
       takeProfitCash = takeProfitCash_ + MathAbs(curProfit);
       takeProfitCashLongs = takeProfitCashLongs_ + MathAbs(curProfit);
-      UseFibProfitLevel = false;//switch off fib target
+      if(!StaticFibo)UseFibProfitLevel = false;//switch off fib target
    }else{
       takeProfitCash = takeProfitCash_;
       takeProfitCashLongs = takeProfitCashLongs_;
-      UseFibProfitLevel = true;//switch on fib target
+      if(!StaticFibo)UseFibProfitLevel = true;//switch on fib target
    }
 }else if(useStaticMoneyRecoverOnBal){
        if(curBalProfit < 0){//if we are in drawdown
          takeProfitCash = takeProfitCash_ + MathAbs(curBalProfit);
          takeProfitCashLongs = takeProfitCashLongs_ + MathAbs(curBalProfit);
-         UseFibProfitLevel = false;//switch off fib target
+         if(!StaticFibo)UseFibProfitLevel = false;//switch off fib target
         }else {
          takeProfitCash = takeProfitCash_;
          takeProfitCashLongs = takeProfitCashLongs_;
-         UseFibProfitLevel = true;//switch on fib target
+         if(!StaticFibo)UseFibProfitLevel = true;//switch on fib target
        }
 }else if(useSteadyProgressRecover){//recover any drawdown even in positive
       if(highestBalCaptured == 0.0){
@@ -374,11 +375,11 @@ if(useStaticMoneyRecoverOnEquity){
          double new_adv_target = MathAbs(highestBalCaptured - curBal);
           takeProfitCash = takeProfitCash_ + MathAbs(new_adv_target);
           takeProfitCashLongs = takeProfitCashLongs_ + MathAbs(new_adv_target);
-          UseFibProfitLevel = false;//switch off fib target
+          if(!StaticFibo)UseFibProfitLevel = false;//switch off fib target
       }else{//if curbal is above highBalCaptured or equal, go back to original targets
           takeProfitCash = takeProfitCash_;
           takeProfitCashLongs = takeProfitCashLongs_;
-          UseFibProfitLevel = true;//switch on fib target
+          if(!StaticFibo)UseFibProfitLevel = true;//switch on fib target
       }
    
   }
@@ -505,8 +506,8 @@ if(useStaticMoneyRecoverOnEquity){
       			//closePosition();
       			if(confirmByNonlag && CurSignalNonLag == "BUY"){
          			if(ActivateSys1){
-            			 CloseAllTrades("SELL"); 
-            			 //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
+            			 //CloseAllTrades("SELL"); 
+            			 TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
             			 //makePosition(orderBuy);
             			 buyPlaced = false;//clear up to all buys
             			 if(ActivateSys1)Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
@@ -514,8 +515,8 @@ if(useStaticMoneyRecoverOnEquity){
             			CurSignal="BUY";
          			}else if(!confirmByNonlag){
             			if(ActivateSys1){
-               			CloseAllTrades("SELL");
-               			//TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
+               			//CloseAllTrades("SELL");
+               			TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
                			buyPlaced = false; 
                			if(ActivateSys1)Price.SendAlert("BUY", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
                			
@@ -529,8 +530,8 @@ if(useStaticMoneyRecoverOnEquity){
       			//closePosition();
       			if(confirmByNonlag && CurSignalNonLag == "SELL"){
          			if(ActivateSys1){
-         			   CloseAllTrades("BUY");
-         			   //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
+         			   //CloseAllTrades("BUY");
+         			   TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
          			   sellPlaced = false;
          			   if(ActivateSys1)Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
          			  }
@@ -538,8 +539,8 @@ if(useStaticMoneyRecoverOnEquity){
          			CurSignal="SELL";
          			} else if(!confirmByNonlag){
             			if(ActivateSys1){
-               			CloseAllTrades("BUY");
-               			//TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
+               			//CloseAllTrades("BUY");
+               			TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
                			sellPlaced = false;
                			if(ActivateSys1)Price.SendAlert("SELL", "\n "+EA_Version+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
                		} 
@@ -783,7 +784,7 @@ if(useStaticMoneyRecoverOnEquity){
    			             "[SL-1: "+fib_050_0+"] \n"+
    			             "[SL-2: "+fib_061_8+"] \n"+
    			             "[TP-1: "+fib_161_8+"] \n"+
-   			             "[TP-2: "+fib_200_0+"] \n"+
+   			             "[TP-2: "+fib_200_0+"] \n\n"+
    			             " *"+EA_Version+"*";
 			             
             			  Price.SendAlert("SELL", msg, alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
@@ -827,11 +828,11 @@ if(useStaticMoneyRecoverOnEquity){
             	   stopLossMM = MathAbs(sonicSL - SymbolInfoDouble(_Symbol,SYMBOL_ASK)) / point;
                   SetLotSize(stopLossMM);
             		
-         			 string msg = " => [BUY Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
+         			 string msg = "\n=>[BUY Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
       			             "[LOT : "+tradeSize+"] \n"+
       			             "[SL-1: "+sonicSL+"] \n"+
       			             "[TP-1: --] \n\n"+
-      			             " *"+EA_Version+"*";
+      			             ""+EA_Version+"";
          			Price.SendAlert("BUY", "\n "+msg+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
          			}
          			
@@ -846,7 +847,7 @@ if(useStaticMoneyRecoverOnEquity){
                      int n_candles = 0;
                      n_candles =Bars(_Symbol,PERIOD_CURRENT,lastSellSignalTime,lastBuySignalTime);		                  
                      if(n_candles <= 0 || lastBuySignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
-                        n_candles = 500;
+                        n_candles = 200;
                      }
                      printf("n_candles=>"+n_candles);
                      printf("lastBuySignalTime=>"+lastBuySignalTime);
@@ -889,14 +890,14 @@ if(useStaticMoneyRecoverOnEquity){
             		      
             		   }else BreakEvenProfit = BreakEvenProfit_;
             		   //Determine/set lots
-                     SetLotSize(stopLossMM);
-            		   string msg = " => [BUY Price: "+SymbolInfoDouble(_Symbol,SYMBOL_ASK)+"] \n"+
-            			             "[LOT: "+tradeSize+"] \n"+
-            			             "[SL-1:"+fib_050_0+"] \n"+
-            			             "[SL-2:"+fib_061_8+"] \n"+
-            			             "[TP-1:"+fib_161_8+"] \n"+
-            			             "[TP-2:"+fib_200_0+"] \n\n"+
-            			             " *"+EA_Version+"*";
+                     SetLotSize(stopLossMM);//💰
+            		   string msg = "\n%F0%9F%94%BC[BUY Price: "+SymbolInfoDouble(_Symbol,SYMBOL_ASK)+"] \n"+
+            			             "%F0%9F%92%B0[LOT: "+tradeSize+"] \n"+
+            			             "%F0%9F%9B%91[SL-1:"+fib_050_0+"] \n"+
+            			             "%F0%9F%9B%91[SL-2:"+fib_061_8+"] \n"+
+            			             "%E2%9C%85[TP-1:"+fib_161_8+"] \n"+
+            			             "%E2%9C%85[TP-2:"+fib_200_0+"] \n\n"+
+            			             ""+EA_Version+"";
             			 
             			 Price.SendAlert("BUY", msg, alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey);
                       printf(msg);
@@ -928,11 +929,11 @@ if(useStaticMoneyRecoverOnEquity){
                   	   stopLossMM = MathAbs(sonicSL - SymbolInfoDouble(_Symbol,SYMBOL_ASK)) / point;
                         SetLotSize(stopLossMM);
          
-            			string msg = " => [SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
+            			string msg = "\n=>[SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
          			             "[LOT : "+tradeSize+"] \n"+
          			             "[SL-1: "+sonicSL+"] \n"+
          			             "[TP-1: --] \n\n"+
-         			             " *"+EA_Version+"*";
+         			             ""+EA_Version+"";
             			Price.SendAlert("SELL", "\n "+msg+" ", alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
       			}
       			
@@ -947,7 +948,7 @@ if(useStaticMoneyRecoverOnEquity){
 	                  //+ get the lowest in the series
 	                  
 	                  if(n_candles <= 0 || lastBuySignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == "1970.01.01 00:00:00" || lastSellSignalTime == NULL || lastBuySignalTime == NULL){
-	                     n_candles = 500;
+	                     n_candles = 200;
 	                  }
 	                  
 	                  printf("n_candles=>"+n_candles);
@@ -986,13 +987,13 @@ if(useStaticMoneyRecoverOnEquity){
             		   //Determine/set lots
 	                   SetLotSize(stopLossMM);
 	                   
-            		   string msg = " => [SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
-			             "[LOT : "+tradeSize+"] \n"+
-			             "[SL-1: "+fib_050_0+"] \n"+
-			             "[SL-2: "+fib_061_8+"] \n"+
-			             "[TP-1: "+fib_161_8+"] \n"+
-			             "[TP-2: "+fib_200_0+"] \n"+
-			             " *"+EA_Version+"*";
+            		   string msg = "\n%F0%9F%94%BD[SELL Price:"+SymbolInfoDouble(_Symbol,SYMBOL_BID)+"] \n"+
+			             "%F0%9F%92%B0[LOT : "+tradeSize+"] \n"+
+			             "%F0%9F%9B%91[SL-1: "+fib_050_0+"] \n"+
+			             "%F0%9F%9B%91[SL-2: "+fib_061_8+"] \n"+
+			             "%E2%9C%85[TP-1: "+fib_161_8+"] \n"+
+			             "%E2%9C%85[TP-2: "+fib_200_0+"] \n\n"+
+			             ""+EA_Version+"";
 		             
          			  Price.SendAlert("SELL", msg, alertsMessage, alertsOnPhone, alertsEmail, alertsSound, alertsTelegram, Channel_ID, APIkey); 
          			  printf(msg);
@@ -1231,7 +1232,7 @@ bool makePosition(orderType type){
 	   // Money management
 		if(UseMoneyManagement == true) { tradeSize = MoneyManagement(_Symbol,volume,RiskPercent,stopLossMM);}
 		else {tradeSize = VerifyVolume(_Symbol,volume);}
-		tradeSize = volume;
+		//tradeSize = volume;
 		
    int tradeCount = MaximumTradeCount;
    while(tradeCount > 0){
@@ -1275,7 +1276,8 @@ bool makePosition(orderType type){
    
    	if(type==orderBuy){
    	   //Close All Sells
-   	   CloseAllTrades("SELL"); 
+   	   //CloseAllTrades("SELL"); 
+   	   //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"SELL" );
    		//Buy
    		request.type=ORDER_TYPE_BUY;
    		price=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_ASK),_Digits);
@@ -1284,7 +1286,8 @@ bool makePosition(orderType type){
    		
    	}else if(type==orderSell){
    	   //Close All Buys
-   	   CloseAllTrades("BUY"); 
+   	   //CloseAllTrades("BUY"); 
+   	   //TradeX.PositionCloseCustom(_Symbol,MagicNumber ,Slippage,"BUY" );
    		//Sell
    		request.type=ORDER_TYPE_SELL;
    		price=NormalizeDouble(SymbolInfoDouble(_Symbol,SYMBOL_BID),_Digits);
@@ -1292,7 +1295,7 @@ bool makePosition(orderType type){
    		if(takeProfit > 0.0)request.tp=NormalizeDouble(price-takeProfit,_Digits);
    
    	}
-   	request.deviation=10;
+   	//request.deviation=10;//removed
    	request.price=price;
    
    
@@ -1757,7 +1760,7 @@ void TakeChartScreenShot(string description_){
    ChartAutoscrollSet(true,0);
    //WindowScreenShot(,640,640);
   if(ChartScreenShot(0,name,640,640,ALIGN_LEFT))
-               printf("We've saved the screenshot ",name);
+     printf("We've saved the screenshot ",name);
   }
 string DayOfWeek(int dow){
    string day[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
@@ -1769,7 +1772,7 @@ void SetLotSize(double stopLossMM_){
   // Money management
 		if(UseMoneyManagement == true) { tradeSize = MoneyManagement(_Symbol,volume,RiskPercent,stopLossMM_);}
 		else {tradeSize = VerifyVolume(_Symbol,volume);}
-		tradeSize = volume;
+		//tradeSize = volume;
   }
   
 //Auto Scroll
