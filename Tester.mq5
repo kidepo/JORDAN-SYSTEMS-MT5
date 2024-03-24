@@ -69,14 +69,35 @@ void OnTick()
 	ArraySetAsSeries(SonicTrendSigBuy,true);
 	ArraySetAsSeries(SonicTrendSigSell,true);
 	
-   // Check for a buy signal from the custom indicator
-   int SonicTendHandle  = iCustom(Symbol(), 0, "silver-trend-signal-alert");
+   // Check for a buy signal from the custom indicator//
+   //int SonicTendHandle  = iCustom(Symbol(), 0, "silver-trend-signal-alert");
+   int SonicTendHandle  = iCustom(Symbol(), 0, "MT5AmplitudeTrend");
    
    
    //double sellSignal = iCustom(Symbol(), 0, "silver-trend-signal-alert");
    
-   CopyBuffer(SonicTendHandle,1,0,3,SonicTrendSigBuy);//Sonic Trend Signal Buy
-	CopyBuffer(SonicTendHandle,0,0,3,SonicTrendSigSell);//Sonic Trend Signal Sell
+   //CopyBuffer(SonicTendHandle,1,0,3,SonicTrendSigBuy);//Sonic Trend Signal Buy
+	//CopyBuffer(SonicTendHandle,0,0,3,SonicTrendSigSell);//Sonic Trend Signal Sell
+	
+	/*CopyBuffer(SonicTendHandle,0,0,3,SonicTrendSigBuy);//Sonic Trend Signal Buy
+	Print("................0");
+   Print(SonicTrendSigBuy[1]);
+	CopyBuffer(SonicTendHandle,1,0,3,SonicTrendSigBuy);//Sonic Trend Signal Sell
+	Print("................1");
+   Print(SonicTrendSigBuy[1]);
+	CopyBuffer(SonicTendHandle,2,0,3,SonicTrendSigBuy);//Sonic Trend Signal Buy
+	Print("................2");
+   Print(SonicTrendSigBuy[1]);
+	CopyBuffer(SonicTendHandle,3,0,3,SonicTrendSigBuy);//Sonic Trend Signal Sell
+	Print("................3");
+   Print(SonicTrendSigBuy[1]);
+   */
+	CopyBuffer(SonicTendHandle,5,0,3,SonicTrendSigBuy);//Sonic Trend Signal Buy
+	//Print("................4");
+   //Print(SonicTrendSigBuy[1]);
+	CopyBuffer(SonicTendHandle,6,0,3,SonicTrendSigSell);//Sonic Trend Signal Sell
+	//Print("................5");
+   //Print(SonicTrendSigSell[1]);
 	
 	
 		
