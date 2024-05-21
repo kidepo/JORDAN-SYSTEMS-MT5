@@ -18,6 +18,7 @@
 #define INTERVAL_SECONDS 30 // Interval in seconds (e.g., every 1 minute)
 
 string signalOrderType = "";
+datetime candleTimes[],lastCandleTime;
 int OnInit()
   {
 //---
@@ -46,6 +47,7 @@ void OnTick()
       checkAvailableSignal();
       lastCallTime = TimeCurrent();
      }
+     ArraySetAsSeries(candleTimes,true);
   }
 //+------------------------------------------------------------------+
 //| Trade function                                                   |
